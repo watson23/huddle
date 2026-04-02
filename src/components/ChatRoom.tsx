@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   collection,
   query,
   orderBy,
-  limit,
   onSnapshot,
-  where,
+  addDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Org, Room, Message } from "@/types";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { AIPresenceToggle } from "./AIPresenceToggle";
+import { AIRaisedHand } from "./AIRaisedHand";
 
 interface ChatRoomProps {
   room: Room;
@@ -23,6 +23,9 @@ interface ChatRoomProps {
   onToggleFiles: () => void;
   onMenuClick: () => void;
 }
+
+const EVAL_PAUSE_MS = 15_000; // Wait 15s after last message before evaluating
+const EVAL_MIN_MESSAGES = 3; // Need at least 3 human messages since last AI action
 
 export function ChatRoom({
   room,
@@ -35,10 +38,12 @@ export function ChatRoom({
   const [messages, setMessages] = useState<Message[]>([]);
   const [aiStreaming, setAiStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [raisedHand, setRaisedHand] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const evalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastEvalCountRef = useRef(0);
 
   useEffect(() => {
-    // Listen to top-level messages only (not thread replies)
     const q = query(
       collection(db, "orgs", org.id, "rooms", room.id, "messages"),
       orderBy("createdAt", "asc")
@@ -54,9 +59,143 @@ export function ChatRoom({
     return unsub;
   }, [org.id, room.id]);
 
+  // Active mode: evaluate after a pause in conversation
+  useEffect(() => {
+    if (room.aiPresence !== "active") {
+      if (evalTimerRef.current) clearTimeout(evalTimerRef.current);
+      return;
+    }
+
+    // Count human messages since last AI message
+    const humanMessagesSinceLastAI = (() => {
+      let count = 0;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].isAI) break;
+        count++;
+      }
+      return count;
+    })();
+
+    // Don't evaluate if not enough new human messages
+    if (humanMessagesSinceLastAI < EVAL_MIN_MESSAGES) return;
+    // Don't re-evaluate at the same message count
+    if (humanMessagesSinceLastAI === lastEvalCountRef.current) return;
+
+    // Clear any pending evaluation
+    if (evalTimerRef.current) clearTimeout(evalTimerRef.current);
+
+    // Set a timer to evaluate after a pause
+    evalTimerRef.current = setTimeout(() => {
+      lastEvalCountRef.current = humanMessagesSinceLastAI;
+      runEvaluation();
+    }, EVAL_PAUSE_MS);
+
+    return () => {
+      if (evalTimerRef.current) clearTimeout(evalTimerRef.current);
+    };
+  }, [messages, room.aiPresence]);
+
+  const runEvaluation = useCallback(async () => {
+    if (aiStreaming) return;
+
+    try {
+      const res = await fetch("/api/ai/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId: org.id,
+          roomId: room.id,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.decision === "RAISE_HAND" && data.teaser) {
+        setRaisedHand(data.teaser);
+      } else if (data.decision === "SPEAK" && data.message) {
+        // Post the message directly
+        await addDoc(
+          collection(db, "orgs", org.id, "rooms", room.id, "messages"),
+          {
+            roomId: room.id,
+            author: "ai",
+            authorName: "Huddle AI",
+            text: data.message,
+            isAI: true,
+            threadId: null,
+            attachments: [],
+            createdAt: Date.now(),
+          }
+        );
+      }
+      // SILENT: do nothing
+    } catch (err) {
+      console.error("AI evaluation error:", err);
+    }
+  }, [org.id, room.id, aiStreaming]);
+
+  const handleExpandRaisedHand = async () => {
+    setRaisedHand(null);
+    // Trigger a full AI response
+    setAiStreaming(true);
+    try {
+      const res = await fetch("/api/ai/respond", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId: org.id,
+          roomId: room.id,
+          threadId: null,
+          aiPresence: "active",
+        }),
+      });
+
+      if (!res.ok || !res.body) throw new Error("AI response failed");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value);
+        fullText += chunk;
+        setStreamingText((prev) => prev + chunk);
+      }
+
+      if (fullText.trim()) {
+        await addDoc(
+          collection(db, "orgs", org.id, "rooms", room.id, "messages"),
+          {
+            roomId: room.id,
+            author: "ai",
+            authorName: "Huddle AI",
+            text: fullText.trim(),
+            isAI: true,
+            threadId: null,
+            attachments: [],
+            createdAt: Date.now(),
+          }
+        );
+      }
+    } catch (err) {
+      console.error("AI response error:", err);
+    } finally {
+      setAiStreaming(false);
+      setStreamingText("");
+    }
+  };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText]);
+
+  // Reset raised hand when switching rooms
+  useEffect(() => {
+    setRaisedHand(null);
+    lastEvalCountRef.current = 0;
+  }, [room.id]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -107,6 +246,16 @@ export function ChatRoom({
         aiStreaming={aiStreaming}
         streamingText={streamingText}
       />
+
+      {/* AI raised hand */}
+      {raisedHand && (
+        <AIRaisedHand
+          teaser={raisedHand}
+          onExpand={handleExpandRaisedHand}
+          onDismiss={() => setRaisedHand(null)}
+        />
+      )}
+
       <div ref={messagesEndRef} />
 
       {/* Input */}

@@ -57,11 +57,11 @@ export function MessageInput({
         }
       );
 
-      // Check if AI should respond
+      // Only trigger AI on explicit @ai mention
+      // Active mode is handled by ChatRoom's evaluation system
       const shouldTriggerAI =
         room.aiPresence !== "off" &&
-        (messageText.toLowerCase().includes("@ai") ||
-          room.aiPresence === "active");
+        messageText.toLowerCase().includes("@ai");
 
       if (shouldTriggerAI) {
         await triggerAIResponse(messageText);
