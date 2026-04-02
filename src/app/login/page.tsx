@@ -35,7 +35,11 @@ export default function LoginPage() {
         </div>
 
         <button
-          onClick={signInWithGoogle}
+          onClick={async () => {
+            await signInWithGoogle();
+            // Force navigation after popup completes
+            window.location.href = "/app";
+          }}
           className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24">
