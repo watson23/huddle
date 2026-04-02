@@ -26,6 +26,8 @@ interface ChatRoomProps {
 
 const EVAL_PAUSE_MS = 15_000; // Wait 15s after last message before evaluating
 const EVAL_MIN_MESSAGES = 3; // Need at least 3 human messages since last AI action
+const MEMORY_PAUSE_MS = 120_000; // Extract memories after 2 min of quiet
+const MEMORY_MIN_MESSAGES = 5; // Need at least 5 messages before extracting
 
 export function ChatRoom({
   room,
@@ -41,7 +43,9 @@ export function ChatRoom({
   const [raisedHand, setRaisedHand] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const evalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const memoryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastEvalCountRef = useRef(0);
+  const lastMemoryCountRef = useRef(0);
 
   useEffect(() => {
     const q = query(
@@ -94,6 +98,27 @@ export function ChatRoom({
       if (evalTimerRef.current) clearTimeout(evalTimerRef.current);
     };
   }, [messages, room.aiPresence]);
+
+  // Memory extraction: runs after a quiet period, regardless of AI presence mode
+  useEffect(() => {
+    if (messages.length < MEMORY_MIN_MESSAGES) return;
+    if (messages.length === lastMemoryCountRef.current) return;
+
+    if (memoryTimerRef.current) clearTimeout(memoryTimerRef.current);
+
+    memoryTimerRef.current = setTimeout(() => {
+      lastMemoryCountRef.current = messages.length;
+      fetch("/api/ai/memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId: org.id, roomId: room.id }),
+      }).catch((err) => console.error("Memory extraction error:", err));
+    }, MEMORY_PAUSE_MS);
+
+    return () => {
+      if (memoryTimerRef.current) clearTimeout(memoryTimerRef.current);
+    };
+  }, [messages.length, org.id, room.id]);
 
   const runEvaluation = useCallback(async () => {
     if (aiStreaming) return;
@@ -195,6 +220,7 @@ export function ChatRoom({
   useEffect(() => {
     setRaisedHand(null);
     lastEvalCountRef.current = 0;
+    lastMemoryCountRef.current = 0;
   }, [room.id]);
 
   return (
