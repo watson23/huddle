@@ -4,6 +4,7 @@ export interface Org {
   id: string;
   name: string;
   members: string[]; // user UIDs
+  joinCode: string; // 6-char alphanumeric code
   createdBy: string;
   createdAt: number;
 }

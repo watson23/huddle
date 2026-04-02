@@ -2,7 +2,9 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { signInWithCustomToken } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 export default function LoginPage() {
   const { user, loading, signInWithGoogle } = useAuth();
@@ -56,7 +58,41 @@ export default function LoginPage() {
           </svg>
           Sign in with Google
         </button>
+
+        {process.env.NODE_ENV === "development" && (
+          <DevLoginButton />
+        )}
       </div>
     </div>
+  );
+}
+
+function DevLoginButton() {
+  const [loading, setLoading] = useState(false);
+
+  const handleDevLogin = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/dev/auth", { method: "POST" });
+      const { token } = await res.json();
+      await signInWithCustomToken(auth, token);
+    } catch (err) {
+      console.error("Dev login failed:", err);
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleDevLogin}
+      disabled={loading}
+      className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-orange-300 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-600 transition-colors hover:bg-orange-100 disabled:opacity-50"
+    >
+      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+      {loading ? "Signing in..." : "Dev Sign In (test user)"}
+    </button>
   );
 }

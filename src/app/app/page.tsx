@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Org } from "@/types";
 import { CreateOrgForm } from "@/components/CreateOrgForm";
@@ -25,8 +25,19 @@ export default function AppPage() {
       );
       const snap = await getDocs(q);
       if (!snap.empty) {
-        const doc = snap.docs[0];
-        setOrg({ id: doc.id, ...doc.data() } as Org);
+        const orgDoc = snap.docs[0];
+        const orgData = { id: orgDoc.id, ...orgDoc.data() } as Org;
+
+        // Backfill join code for orgs created before this feature
+        if (!orgData.joinCode) {
+          const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+          let code = "";
+          for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+          await updateDoc(doc(db, "orgs", orgDoc.id), { joinCode: code });
+          orgData.joinCode = code;
+        }
+
+        setOrg(orgData);
       } else {
         setNeedsOrg(true);
       }

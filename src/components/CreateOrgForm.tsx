@@ -1,10 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { collection, addDoc } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  arrayUnion,
+  doc,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Org } from "@/types";
+
+function generateJoinCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I to avoid confusion
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
 
 interface CreateOrgFormProps {
   onCreated: (org: Org) => void;
@@ -14,15 +32,21 @@ export function CreateOrgForm({ onCreated }: CreateOrgFormProps) {
   const { user } = useAuth();
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [mode, setMode] = useState<"choose" | "create" | "join">("choose");
+  const [joinCode, setJoinCode] = useState("");
+  const [joinError, setJoinError] = useState("");
+  const [joining, setJoining] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !user) return;
 
     setCreating(true);
+    const code = generateJoinCode();
     const docRef = await addDoc(collection(db, "orgs"), {
       name: name.trim(),
       members: [user.uid],
+      joinCode: code,
       createdBy: user.uid,
       createdAt: Date.now(),
     });
@@ -31,10 +55,123 @@ export function CreateOrgForm({ onCreated }: CreateOrgFormProps) {
       id: docRef.id,
       name: name.trim(),
       members: [user.uid],
+      joinCode: code,
       createdBy: user.uid,
       createdAt: Date.now(),
     });
   };
+
+  const handleJoin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!joinCode.trim() || !user) return;
+
+    setJoining(true);
+    setJoinError("");
+
+    const q = query(
+      collection(db, "orgs"),
+      where("joinCode", "==", joinCode.trim().toUpperCase())
+    );
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      setJoinError("No organization found with that code.");
+      setJoining(false);
+      return;
+    }
+
+    const orgDoc = snap.docs[0];
+    const orgData = orgDoc.data();
+
+    if (orgData.members?.includes(user.uid)) {
+      onCreated({ id: orgDoc.id, ...orgData } as Org);
+      return;
+    }
+
+    await updateDoc(doc(db, "orgs", orgDoc.id), {
+      members: arrayUnion(user.uid),
+    });
+
+    onCreated({
+      id: orgDoc.id,
+      ...orgData,
+      members: [...(orgData.members || []), user.uid],
+    } as Org);
+  };
+
+  if (mode === "choose") {
+    return (
+      <div className="flex h-full items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg">
+          <h2 className="mb-2 text-center text-2xl font-bold text-gray-900">
+            Welcome to Huddle
+          </h2>
+          <p className="mb-6 text-center text-sm text-gray-500">
+            Create a new workspace or join an existing one.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => setMode("create")}
+              className="w-full rounded-lg bg-indigo-500 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-indigo-600"
+            >
+              Create an organization
+            </button>
+            <button
+              onClick={() => setMode("join")}
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              Join with a code
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === "join") {
+    return (
+      <div className="flex h-full items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg">
+          <h2 className="mb-2 text-2xl font-bold text-gray-900">
+            Join an organization
+          </h2>
+          <p className="mb-6 text-sm text-gray-500">
+            Enter the 6-character code shared by your team.
+          </p>
+          <form onSubmit={handleJoin}>
+            <input
+              type="text"
+              value={joinCode}
+              onChange={(e) => {
+                setJoinCode(e.target.value.toUpperCase().slice(0, 6));
+                setJoinError("");
+              }}
+              placeholder="e.g. AB3XY7"
+              className="mb-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-center font-mono text-lg tracking-widest focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              autoFocus
+              maxLength={6}
+            />
+            {joinError && (
+              <p className="mb-2 text-xs text-red-500">{joinError}</p>
+            )}
+            <button
+              type="submit"
+              disabled={joinCode.length !== 6 || joining}
+              className="mb-3 w-full rounded-lg bg-indigo-500 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-indigo-600 disabled:opacity-50"
+            >
+              {joining ? "Joining..." : "Join"}
+            </button>
+          </form>
+          <button
+            onClick={() => setMode("choose")}
+            className="w-full text-center text-xs text-gray-400 hover:text-gray-600"
+          >
+            Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
@@ -45,7 +182,7 @@ export function CreateOrgForm({ onCreated }: CreateOrgFormProps) {
         <p className="mb-6 text-sm text-gray-500">
           This is your team workspace in Huddle.
         </p>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleCreate}>
           <input
             type="text"
             value={name}
@@ -57,11 +194,17 @@ export function CreateOrgForm({ onCreated }: CreateOrgFormProps) {
           <button
             type="submit"
             disabled={!name.trim() || creating}
-            className="w-full rounded-lg bg-indigo-500 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-indigo-600 disabled:opacity-50"
+            className="mb-3 w-full rounded-lg bg-indigo-500 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-indigo-600 disabled:opacity-50"
           >
             {creating ? "Creating..." : "Create Organization"}
           </button>
         </form>
+        <button
+          onClick={() => setMode("choose")}
+          className="w-full text-center text-xs text-gray-400 hover:text-gray-600"
+        >
+          Back
+        </button>
       </div>
     </div>
   );

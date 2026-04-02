@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import type { Org, Room } from "@/types";
 import { Sidebar } from "./Sidebar";
 import { ChatRoom } from "./ChatRoom";
@@ -11,12 +13,30 @@ interface AppShellProps {
 }
 
 export function AppShell({ org }: AppShellProps) {
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
   const [rightPanel, setRightPanel] = useState<
     "closed" | "thread" | "memory" | "files"
   >("closed");
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Subscribe to active room changes (so AI presence toggle updates in real-time)
+  useEffect(() => {
+    if (!activeRoomId) {
+      setActiveRoom(null);
+      return;
+    }
+    const unsub = onSnapshot(
+      doc(db, "orgs", org.id, "rooms", activeRoomId),
+      (snap) => {
+        if (snap.exists()) {
+          setActiveRoom({ id: snap.id, ...snap.data() } as Room);
+        }
+      }
+    );
+    return unsub;
+  }, [org.id, activeRoomId]);
 
   const openThread = (messageId: string) => {
     setActiveThreadId(messageId);
@@ -43,7 +63,7 @@ export function AppShell({ org }: AppShellProps) {
           org={org}
           activeRoom={activeRoom}
           onSelectRoom={(room) => {
-            setActiveRoom(room);
+            setActiveRoomId(room.id);
             setSidebarOpen(false);
           }}
         />
