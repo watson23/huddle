@@ -61,9 +61,12 @@ export function Sidebar({ org, activeRoom, onSelectRoom }: SidebarProps) {
     <div className="flex h-full flex-col bg-[#1e1e2e] text-[#cdd6f4]">
       {/* Org header */}
       <div className="border-b border-white/10 px-4 py-4">
-        <h2 className="truncate text-sm font-semibold text-white">
-          {org.name}
-        </h2>
+        <div className="flex items-center gap-2.5">
+          <img src="/logo.png" alt="" className="h-7 w-7 shrink-0" />
+          <h2 className="truncate text-sm font-semibold text-white">
+            {org.name}
+          </h2>
+        </div>
       </div>
 
       {/* Room list */}

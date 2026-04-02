@@ -1,11 +1,11 @@
 {
-  "name": "Huddle",
-  "short_name": "Huddle",
+  "name": "ShodoHuddle",
+  "short_name": "ShodoHuddle",
   "description": "Group conversations with AI",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8f9fa",
-  "theme_color": "#6366f1",
+  "theme_color": "#4338ca",
   "icons": [
     {
       "src": "/icon-192.png",

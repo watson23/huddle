@@ -103,12 +103,13 @@ export function CreateOrgForm({ onCreated }: CreateOrgFormProps) {
     return (
       <div className="flex h-full items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
         <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg">
-          <h2 className="mb-2 text-center text-2xl font-bold text-gray-900">
-            Welcome to Huddle
-          </h2>
-          <p className="mb-6 text-center text-sm text-gray-500">
-            Create a new workspace or join an existing one.
-          </p>
+          <div className="mb-6 flex flex-col items-center">
+            <img src="/logo.png" alt="ShodoHuddle" className="h-14 w-auto" />
+            <img src="/logo-text.png" alt="shodohuddle" className="mt-2 h-4 w-auto" />
+            <p className="mt-3 text-sm text-gray-500">
+              Create a new workspace or join an existing one.
+            </p>
+          </div>
           <div className="flex flex-col gap-3">
             <button
               onClick={() => setMode("create")}

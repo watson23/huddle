@@ -9,9 +9,13 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Huddle",
+  title: "ShodoHuddle",
   description: "Group conversations with AI",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({

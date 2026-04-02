@@ -28,9 +28,10 @@ export default function LoginPage() {
   return (
     <div className="flex h-full items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
       <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-gray-900">Huddle</h1>
-          <p className="mt-2 text-gray-500">
+        <div className="mb-8 flex flex-col items-center">
+          <img src="/logo.png" alt="ShodoHuddle" className="h-16 w-auto" />
+          <img src="/logo-text.png" alt="shodohuddle" className="mt-3 h-5 w-auto" />
+          <p className="mt-2 text-sm text-gray-500">
             Group conversations with AI
           </p>
         </div>

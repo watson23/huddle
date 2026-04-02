@@ -76,7 +76,8 @@ export default function JoinPage() {
   return (
     <div className="flex h-full items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
       <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg">
-        <h1 className="text-3xl font-bold text-gray-900">Huddle</h1>
+        <img src="/logo.png" alt="ShodoHuddle" className="mx-auto h-14 w-auto" />
+        <img src="/logo-text.png" alt="shodohuddle" className="mx-auto mt-2 h-4 w-auto" />
         <p className="mt-4 text-gray-700">
           You&apos;ve been invited to join
         </p>
