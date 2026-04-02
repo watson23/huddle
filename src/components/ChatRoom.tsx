@@ -14,6 +14,7 @@ import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { AIPresenceToggle } from "./AIPresenceToggle";
 import { AIRaisedHand } from "./AIRaisedHand";
+import { AboutModal } from "./AboutModal";
 
 interface ChatRoomProps {
   room: Room;
@@ -41,6 +42,7 @@ export function ChatRoom({
   const [aiStreaming, setAiStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [raisedHand, setRaisedHand] = useState<string | null>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const evalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const memoryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -265,11 +267,17 @@ export function ChatRoom({
         </button>
 
         {/* Brand mark */}
-        <div className="ml-2 hidden items-center gap-1.5 border-l border-gray-200 pl-3 sm:flex">
+        <button
+          onClick={() => setAboutOpen(true)}
+          className="ml-2 hidden items-center gap-1.5 border-l border-gray-200 pl-3 transition-opacity hover:opacity-70 sm:flex"
+          title="About ShodoHuddle"
+        >
           <img src="/logo.png" alt="" className="h-5 w-5" />
           <img src="/logo-text.png" alt="shodohuddle" className="h-3 w-auto opacity-40" />
-        </div>
+        </button>
       </div>
+
+      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
 
       {/* Messages */}
       <MessageList
