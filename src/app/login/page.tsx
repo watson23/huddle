@@ -9,6 +9,7 @@ import { auth } from "@/lib/firebase";
 export default function LoginPage() {
   const { user, loading, signInWithGoogle } = useAuth();
   const router = useRouter();
+  const [signingIn, setSigningIn] = useState(false);
 
   useEffect(() => {
     if (!loading && user) {
@@ -16,7 +17,7 @@ export default function LoginPage() {
     }
   }, [user, loading, router]);
 
-  if (loading) {
+  if (loading || signingIn) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
@@ -36,9 +37,13 @@ export default function LoginPage() {
 
         <button
           onClick={async () => {
-            await signInWithGoogle();
-            // Force navigation after popup completes
-            window.location.href = "/app";
+            setSigningIn(true);
+            try {
+              await signInWithGoogle();
+              window.location.href = "/app";
+            } catch {
+              setSigningIn(false);
+            }
           }}
           className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
         >
