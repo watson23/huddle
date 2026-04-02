@@ -5,7 +5,6 @@ import {
   collection,
   query,
   where,
-  orderBy,
   onSnapshot,
   doc,
   getDoc,
@@ -34,17 +33,17 @@ export function ThreadPanel({ room, org, threadId }: ThreadPanelProps) {
       }
     });
 
-    // Listen to thread replies
+    // Listen to thread replies — filter client-side to avoid needing a composite index
     const q = query(
       collection(db, "orgs", org.id, "rooms", room.id, "messages"),
-      where("threadId", "==", threadId),
-      orderBy("createdAt", "asc")
+      where("threadId", "==", threadId)
     );
 
     const unsub = onSnapshot(q, (snap) => {
-      setReplies(
-        snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message))
-      );
+      const msgs = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as Message))
+        .sort((a, b) => a.createdAt - b.createdAt);
+      setReplies(msgs);
     });
 
     return unsub;
