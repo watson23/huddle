@@ -9,35 +9,35 @@ import {
   addDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Org, Room, Message } from "@/types";
+import type { Team, Huddle, Message } from "@/types";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { AIPresenceToggle } from "./AIPresenceToggle";
 import { AIRaisedHand } from "./AIRaisedHand";
 import { AboutModal } from "./AboutModal";
 
-interface ChatRoomProps {
-  room: Room;
-  org: Org;
+interface ChatHuddleProps {
+  huddle: Huddle;
+  team: Team;
   onOpenThread: (messageId: string) => void;
   onToggleMemory: () => void;
   onToggleFiles: () => void;
   onMenuClick: () => void;
 }
 
-const EVAL_PAUSE_MS = 15_000; // Wait 15s after last message before evaluating
-const EVAL_MIN_MESSAGES = 3; // Need at least 3 human messages since last AI action
-const MEMORY_PAUSE_MS = 120_000; // Extract memories after 2 min of quiet
-const MEMORY_MIN_MESSAGES = 5; // Need at least 5 messages before extracting
+const EVAL_PAUSE_MS = 15_000;
+const EVAL_MIN_MESSAGES = 3;
+const MEMORY_PAUSE_MS = 120_000;
+const MEMORY_MIN_MESSAGES = 5;
 
-export function ChatRoom({
-  room,
-  org,
+export function ChatHuddle({
+  huddle,
+  team,
   onOpenThread,
   onToggleMemory,
   onToggleFiles,
   onMenuClick,
-}: ChatRoomProps) {
+}: ChatHuddleProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [aiStreaming, setAiStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
@@ -51,7 +51,7 @@ export function ChatRoom({
 
   useEffect(() => {
     const q = query(
-      collection(db, "orgs", org.id, "rooms", room.id, "messages"),
+      collection(db, "teams", team.id, "huddles", huddle.id, "messages"),
       orderBy("createdAt", "asc")
     );
 
@@ -63,16 +63,15 @@ export function ChatRoom({
     });
 
     return unsub;
-  }, [org.id, room.id]);
+  }, [team.id, huddle.id]);
 
   // Active mode: evaluate after a pause in conversation
   useEffect(() => {
-    if (room.aiPresence !== "active") {
+    if (huddle.aiPresence !== "active") {
       if (evalTimerRef.current) clearTimeout(evalTimerRef.current);
       return;
     }
 
-    // Count human messages since last AI message
     const humanMessagesSinceLastAI = (() => {
       let count = 0;
       for (let i = messages.length - 1; i >= 0; i--) {
@@ -82,15 +81,11 @@ export function ChatRoom({
       return count;
     })();
 
-    // Don't evaluate if not enough new human messages
     if (humanMessagesSinceLastAI < EVAL_MIN_MESSAGES) return;
-    // Don't re-evaluate at the same message count
     if (humanMessagesSinceLastAI === lastEvalCountRef.current) return;
 
-    // Clear any pending evaluation
     if (evalTimerRef.current) clearTimeout(evalTimerRef.current);
 
-    // Set a timer to evaluate after a pause
     evalTimerRef.current = setTimeout(() => {
       lastEvalCountRef.current = humanMessagesSinceLastAI;
       runEvaluation();
@@ -99,7 +94,7 @@ export function ChatRoom({
     return () => {
       if (evalTimerRef.current) clearTimeout(evalTimerRef.current);
     };
-  }, [messages, room.aiPresence]);
+  }, [messages, huddle.aiPresence]);
 
   // Memory extraction: runs after a quiet period, regardless of AI presence mode
   useEffect(() => {
@@ -113,14 +108,14 @@ export function ChatRoom({
       fetch("/api/ai/memory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId: org.id, roomId: room.id }),
+        body: JSON.stringify({ teamId: team.id, huddleId: huddle.id }),
       }).catch((err) => console.error("Memory extraction error:", err));
     }, MEMORY_PAUSE_MS);
 
     return () => {
       if (memoryTimerRef.current) clearTimeout(memoryTimerRef.current);
     };
-  }, [messages.length, org.id, room.id]);
+  }, [messages.length, team.id, huddle.id]);
 
   const runEvaluation = useCallback(async () => {
     if (aiStreaming) return;
@@ -130,8 +125,8 @@ export function ChatRoom({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orgId: org.id,
-          roomId: room.id,
+          teamId: team.id,
+          huddleId: huddle.id,
         }),
       });
 
@@ -140,11 +135,10 @@ export function ChatRoom({
       if (data.decision === "RAISE_HAND" && data.teaser) {
         setRaisedHand(data.teaser);
       } else if (data.decision === "SPEAK" && data.message) {
-        // Post the message directly
         await addDoc(
-          collection(db, "orgs", org.id, "rooms", room.id, "messages"),
+          collection(db, "teams", team.id, "huddles", huddle.id, "messages"),
           {
-            roomId: room.id,
+            huddleId: huddle.id,
             author: "ai",
             authorName: "Huddle AI",
             text: data.message,
@@ -155,23 +149,21 @@ export function ChatRoom({
           }
         );
       }
-      // SILENT: do nothing
     } catch (err) {
       console.error("AI evaluation error:", err);
     }
-  }, [org.id, room.id, aiStreaming]);
+  }, [team.id, huddle.id, aiStreaming]);
 
   const handleExpandRaisedHand = async () => {
     setRaisedHand(null);
-    // Trigger a full AI response
     setAiStreaming(true);
     try {
       const res = await fetch("/api/ai/respond", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orgId: org.id,
-          roomId: room.id,
+          teamId: team.id,
+          huddleId: huddle.id,
           threadId: null,
           aiPresence: "active",
         }),
@@ -193,9 +185,9 @@ export function ChatRoom({
 
       if (fullText.trim()) {
         await addDoc(
-          collection(db, "orgs", org.id, "rooms", room.id, "messages"),
+          collection(db, "teams", team.id, "huddles", huddle.id, "messages"),
           {
-            roomId: room.id,
+            huddleId: huddle.id,
             author: "ai",
             authorName: "Huddle AI",
             text: fullText.trim(),
@@ -218,16 +210,16 @@ export function ChatRoom({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText]);
 
-  // Reset raised hand when switching rooms
+  // Reset raised hand when switching huddles
   useEffect(() => {
     setRaisedHand(null);
     lastEvalCountRef.current = 0;
     lastMemoryCountRef.current = 0;
-  }, [room.id]);
+  }, [huddle.id]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Room header */}
+      {/* Huddle header */}
       <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3">
         <button
           onClick={onMenuClick}
@@ -239,12 +231,12 @@ export function ChatRoom({
         </button>
 
         <h1 className="text-lg font-semibold text-gray-900">
-          # {room.name}
+          # {huddle.name}
         </h1>
 
         <div className="flex-1" />
 
-        <AIPresenceToggle room={room} orgId={org.id} />
+        <AIPresenceToggle huddle={huddle} teamId={team.id} />
 
         <button
           onClick={onToggleMemory}
@@ -300,8 +292,8 @@ export function ChatRoom({
 
       {/* Input */}
       <MessageInput
-        room={room}
-        org={org}
+        huddle={huddle}
+        team={team}
         onAIStreamStart={() => setAiStreaming(true)}
         onAIStreamText={(text) => setStreamingText((prev) => prev + text)}
         onAIStreamEnd={() => {

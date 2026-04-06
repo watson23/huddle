@@ -11,35 +11,35 @@ const EXTRACTION_PROMPT = `You are analyzing a group conversation to extract key
 
 Extract memories in this JSON format:
 {
-  "roomMemories": [
+  "huddleMemories": [
     { "key": "short label", "value": "the fact or decision" }
   ],
-  "orgMemories": [
-    { "key": "short label", "value": "fact relevant across the entire organization" }
+  "teamMemories": [
+    { "key": "short label", "value": "fact relevant across the entire team" }
   ]
 }
 
 Rules:
-- Room memories: specific to this conversation (decisions made, action items, context)
-- Org memories: broadly relevant (terminology, people, projects, processes)
+- Huddle memories: specific to this conversation (decisions made, action items, context)
+- Team memories: broadly relevant (terminology, people, projects, processes)
 - Be concise — each value should be 1-2 sentences
 - Only extract genuinely useful information, not trivial chat
 - If nothing meaningful was discussed, return empty arrays
 - Return valid JSON only, no markdown`;
 
 export async function POST(req: NextRequest) {
-  const { orgId, roomId } = await req.json();
+  const { teamId, huddleId } = await req.json();
 
-  if (!orgId || !roomId) {
+  if (!teamId || !huddleId) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
   // Fetch recent messages (last 100 for better context)
   const msgSnap = await getAdminDb()
-    .collection("orgs")
-    .doc(orgId)
-    .collection("rooms")
-    .doc(roomId)
+    .collection("teams")
+    .doc(teamId)
+    .collection("huddles")
+    .doc(huddleId)
     .collection("messages")
     .orderBy("createdAt", "desc")
     .limit(100)
@@ -76,13 +76,13 @@ export async function POST(req: NextRequest) {
     const parsed = JSON.parse(text);
     const now = Date.now();
 
-    // Save room memories
-    for (const mem of parsed.roomMemories || []) {
+    // Save huddle memories
+    for (const mem of parsed.huddleMemories || []) {
       await getAdminDb()
-        .collection("orgs")
-        .doc(orgId)
-        .collection("rooms")
-        .doc(roomId)
+        .collection("teams")
+        .doc(teamId)
+        .collection("huddles")
+        .doc(huddleId)
         .collection("memory")
         .add({
           key: mem.key,
@@ -93,16 +93,16 @@ export async function POST(req: NextRequest) {
         });
     }
 
-    // Save org memories
-    for (const mem of parsed.orgMemories || []) {
+    // Save team memories
+    for (const mem of parsed.teamMemories || []) {
       await getAdminDb()
-        .collection("orgs")
-        .doc(orgId)
+        .collection("teams")
+        .doc(teamId)
         .collection("memory")
         .add({
           key: mem.key,
           value: mem.value,
-          source: `auto-extracted from room ${roomId}`,
+          source: `auto-extracted from huddle ${huddleId}`,
           createdAt: now,
           updatedAt: now,
         });
@@ -110,8 +110,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       extracted:
-        (parsed.roomMemories?.length || 0) +
-        (parsed.orgMemories?.length || 0),
+        (parsed.huddleMemories?.length || 0) +
+        (parsed.teamMemories?.length || 0),
     });
   } catch {
     console.error("Failed to parse memory extraction:", text);

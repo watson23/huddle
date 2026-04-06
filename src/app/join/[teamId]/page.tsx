@@ -5,52 +5,52 @@ import { useEffect, useState } from "react";
 import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRouter, useParams } from "next/navigation";
-import type { Org } from "@/types";
+import type { Team } from "@/types";
 
 export default function JoinPage() {
   const { user, loading, signInWithGoogle } = useAuth();
   const router = useRouter();
   const params = useParams();
-  const orgId = params.orgId as string;
+  const teamId = params.teamId as string;
 
-  const [org, setOrg] = useState<Org | null>(null);
+  const [team, setTeam] = useState<Team | null>(null);
   const [status, setStatus] = useState<"loading" | "found" | "not-found" | "joining" | "joined">("loading");
 
-  // Load org info
+  // Load team info
   useEffect(() => {
-    async function loadOrg() {
-      const snap = await getDoc(doc(db, "orgs", orgId));
+    async function loadTeam() {
+      const snap = await getDoc(doc(db, "teams", teamId));
       if (snap.exists()) {
-        setOrg({ id: snap.id, ...snap.data() } as Org);
+        setTeam({ id: snap.id, ...snap.data() } as Team);
         setStatus("found");
       } else {
         setStatus("not-found");
       }
     }
-    loadOrg();
-  }, [orgId]);
+    loadTeam();
+  }, [teamId]);
 
   // Auto-join once signed in
   useEffect(() => {
-    if (!user || !org || status !== "found") return;
+    if (!user || !team || status !== "found") return;
 
     // Already a member
-    if (org.members.includes(user.uid)) {
+    if (team.members.includes(user.uid)) {
       router.replace("/app");
       return;
     }
 
-    async function joinOrg() {
+    async function joinTeam() {
       setStatus("joining");
-      await updateDoc(doc(db, "orgs", orgId), {
+      await updateDoc(doc(db, "teams", teamId), {
         members: arrayUnion(user!.uid),
       });
       setStatus("joined");
       router.replace("/app");
     }
 
-    joinOrg();
-  }, [user, org, status, orgId, router]);
+    joinTeam();
+  }, [user, team, status, teamId, router]);
 
   if (status === "loading" || loading) {
     return (
@@ -66,7 +66,7 @@ export default function JoinPage() {
         <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg">
           <h2 className="text-xl font-bold text-gray-900">Invite not found</h2>
           <p className="mt-2 text-sm text-gray-500">
-            This invite link is invalid or the organization no longer exists.
+            This invite link is invalid or the team no longer exists.
           </p>
         </div>
       </div>
@@ -82,7 +82,7 @@ export default function JoinPage() {
           You&apos;ve been invited to join
         </p>
         <p className="mt-1 text-lg font-semibold text-indigo-600">
-          {org?.name}
+          {team?.name}
         </p>
 
         {status === "joining" || status === "joined" ? (

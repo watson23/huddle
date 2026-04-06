@@ -2,11 +2,11 @@
 
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Room, AIPresence } from "@/types";
+import type { Huddle, AIPresence } from "@/types";
 
 interface AIPresenceToggleProps {
-  room: Room;
-  orgId: string;
+  huddle: Huddle;
+  teamId: string;
 }
 
 const labels: Record<AIPresence, string> = {
@@ -27,10 +27,10 @@ const nextState: Record<AIPresence, AIPresence> = {
   active: "off",
 };
 
-export function AIPresenceToggle({ room, orgId }: AIPresenceToggleProps) {
+export function AIPresenceToggle({ huddle, teamId }: AIPresenceToggleProps) {
   const toggle = async () => {
-    const next = nextState[room.aiPresence];
-    await updateDoc(doc(db, "orgs", orgId, "rooms", room.id), {
+    const next = nextState[huddle.aiPresence];
+    await updateDoc(doc(db, "teams", teamId, "huddles", huddle.id), {
       aiPresence: next,
     });
   };
@@ -38,10 +38,10 @@ export function AIPresenceToggle({ room, orgId }: AIPresenceToggleProps) {
   return (
     <button
       onClick={toggle}
-      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${colors[room.aiPresence]}`}
+      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${colors[huddle.aiPresence]}`}
       title={`Click to cycle: Off → On-demand → Active`}
     >
-      {labels[room.aiPresence]}
+      {labels[huddle.aiPresence]}
     </button>
   );
 }

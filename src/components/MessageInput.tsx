@@ -4,11 +4,11 @@ import { useState, useRef } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Org, Room } from "@/types";
+import type { Team, Huddle } from "@/types";
 
 interface MessageInputProps {
-  room: Room;
-  org: Org;
+  huddle: Huddle;
+  team: Team;
   threadId?: string;
   onAIStreamStart?: () => void;
   onAIStreamText?: (text: string) => void;
@@ -16,8 +16,8 @@ interface MessageInputProps {
 }
 
 export function MessageInput({
-  room,
-  org,
+  huddle,
+  team,
   threadId,
   onAIStreamStart,
   onAIStreamText,
@@ -43,9 +43,9 @@ export function MessageInput({
     try {
       // Save the user message
       await addDoc(
-        collection(db, "orgs", org.id, "rooms", room.id, "messages"),
+        collection(db, "teams", team.id, "huddles", huddle.id, "messages"),
         {
-          roomId: room.id,
+          huddleId: huddle.id,
           author: user.uid,
           authorName: user.displayName || "Anonymous",
           authorPhoto: user.photoURL || null,
@@ -58,9 +58,9 @@ export function MessageInput({
       );
 
       // Only trigger AI on explicit @ai mention
-      // Active mode is handled by ChatRoom's evaluation system
+      // Active mode is handled by ChatHuddle's evaluation system
       const shouldTriggerAI =
-        room.aiPresence !== "off" &&
+        huddle.aiPresence !== "off" &&
         messageText.toLowerCase().includes("@ai");
 
       if (shouldTriggerAI) {
@@ -79,10 +79,10 @@ export function MessageInput({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orgId: org.id,
-          roomId: room.id,
+          teamId: team.id,
+          huddleId: huddle.id,
           threadId: threadId || null,
-          aiPresence: room.aiPresence,
+          aiPresence: huddle.aiPresence,
         }),
       });
 
@@ -105,9 +105,9 @@ export function MessageInput({
       // Save the completed AI message
       if (fullText.trim()) {
         await addDoc(
-          collection(db, "orgs", org.id, "rooms", room.id, "messages"),
+          collection(db, "teams", team.id, "huddles", huddle.id, "messages"),
           {
-            roomId: room.id,
+            huddleId: huddle.id,
             author: "ai",
             authorName: "Huddle AI",
             text: fullText.trim(),
@@ -150,7 +150,7 @@ export function MessageInput({
           onKeyDown={handleKeyDown}
           onInput={handleInput}
           placeholder={
-            room.aiPresence === "on-demand"
+            huddle.aiPresence === "on-demand"
               ? "Type a message... (use @ai to ask the AI)"
               : "Type a message..."
           }

@@ -19,18 +19,18 @@ Keep responses brief (under 150 words). You're a collaborator, not the main spea
 };
 
 export async function POST(req: NextRequest) {
-  const { orgId, roomId, threadId, aiPresence } = await req.json();
+  const { teamId, huddleId, threadId, aiPresence } = await req.json();
 
-  if (!orgId || !roomId || aiPresence === "off") {
+  if (!teamId || !huddleId || aiPresence === "off") {
     return new Response("Bad request", { status: 400 });
   }
 
   // Fetch recent messages
   const messagesRef = getAdminDb()
-    .collection("orgs")
-    .doc(orgId)
-    .collection("rooms")
-    .doc(roomId)
+    .collection("teams")
+    .doc(teamId)
+    .collection("huddles")
+    .doc(huddleId)
     .collection("messages");
 
   let msgQuery = messagesRef.orderBy("createdAt", "desc").limit(50);
@@ -47,27 +47,27 @@ export async function POST(req: NextRequest) {
     .reverse();
 
   // Fetch memories
-  const roomMemSnap = await getAdminDb()
-    .collection("orgs")
-    .doc(orgId)
-    .collection("rooms")
-    .doc(roomId)
+  const huddleMemSnap = await getAdminDb()
+    .collection("teams")
+    .doc(teamId)
+    .collection("huddles")
+    .doc(huddleId)
     .collection("memory")
     .orderBy("createdAt", "desc")
     .limit(20)
     .get();
 
-  const orgMemSnap = await getAdminDb()
-    .collection("orgs")
-    .doc(orgId)
+  const teamMemSnap = await getAdminDb()
+    .collection("teams")
+    .doc(teamId)
     .collection("memory")
     .orderBy("createdAt", "desc")
     .limit(20)
     .get();
 
   const memories: Memory[] = [
-    ...roomMemSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Memory)),
-    ...orgMemSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Memory)),
+    ...huddleMemSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Memory)),
+    ...teamMemSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Memory)),
   ];
 
   const provider = new ClaudeProvider();

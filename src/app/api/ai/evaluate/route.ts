@@ -31,9 +31,9 @@ Guidelines:
 Respond with EXACTLY one of the three formats above, nothing else.`;
 
 export async function POST(req: NextRequest) {
-  const { orgId, roomId, threadId } = await req.json();
+  const { teamId, huddleId, threadId } = await req.json();
 
-  if (!orgId || !roomId) {
+  if (!teamId || !huddleId) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
@@ -41,10 +41,10 @@ export async function POST(req: NextRequest) {
 
   // Fetch recent messages
   const messagesRef = db
-    .collection("orgs")
-    .doc(orgId)
-    .collection("rooms")
-    .doc(roomId)
+    .collection("teams")
+    .doc(teamId)
+    .collection("huddles")
+    .doc(huddleId)
     .collection("messages");
 
   let msgQuery = messagesRef.orderBy("createdAt", "desc").limit(30);
@@ -65,23 +65,23 @@ export async function POST(req: NextRequest) {
   }
 
   // Fetch memories for context
-  const roomMemSnap = await db
-    .collection("orgs")
-    .doc(orgId)
-    .collection("rooms")
-    .doc(roomId)
+  const huddleMemSnap = await db
+    .collection("teams")
+    .doc(teamId)
+    .collection("huddles")
+    .doc(huddleId)
     .collection("memory")
     .orderBy("createdAt", "desc")
     .limit(10)
     .get();
 
-  const memories: Memory[] = roomMemSnap.docs.map(
+  const memories: Memory[] = huddleMemSnap.docs.map(
     (d) => ({ id: d.id, ...d.data() } as Memory)
   );
 
   const memoryContext =
     memories.length > 0
-      ? "\n\nYour memories about this room:\n" +
+      ? "\n\nYour memories about this huddle:\n" +
         memories.map((m) => `- ${m.key}: ${m.value}`).join("\n")
       : "";
 

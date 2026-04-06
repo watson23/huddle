@@ -11,92 +11,92 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePresence } from "@/hooks/usePresence";
-import type { Org, Room, AIPresence } from "@/types";
+import type { Team, Huddle, AIPresence } from "@/types";
 
 interface SidebarProps {
-  org: Org;
-  activeRoom: Room | null;
-  onSelectRoom: (room: Room) => void;
+  team: Team;
+  activeHuddle: Huddle | null;
+  onSelectHuddle: (huddle: Huddle) => void;
 }
 
-export function Sidebar({ org, activeRoom, onSelectRoom }: SidebarProps) {
+export function Sidebar({ team, activeHuddle, onSelectHuddle }: SidebarProps) {
   const { user, signOut } = useAuth();
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [huddles, setHuddles] = useState<Huddle[]>([]);
   const [creating, setCreating] = useState(false);
-  const [newRoomName, setNewRoomName] = useState("");
+  const [newHuddleName, setNewHuddleName] = useState("");
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
-  const { members, isOnline } = usePresence(org.id);
+  const { members, isOnline } = usePresence(team.id);
 
   useEffect(() => {
-    const q = query(collection(db, "orgs", org.id, "rooms"));
+    const q = query(collection(db, "teams", team.id, "huddles"));
     const unsub = onSnapshot(q, (snap) => {
-      const roomList = snap.docs.map(
-        (doc) => ({ id: doc.id, ...doc.data() } as Room)
+      const huddleList = snap.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() } as Huddle)
       );
-      roomList.sort((a, b) => a.createdAt - b.createdAt);
-      setRooms(roomList);
+      huddleList.sort((a, b) => a.createdAt - b.createdAt);
+      setHuddles(huddleList);
     });
     return unsub;
-  }, [org.id]);
+  }, [team.id]);
 
-  const handleCreateRoom = async (e: React.FormEvent) => {
+  const handleCreateHuddle = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRoomName.trim() || !user) return;
+    if (!newHuddleName.trim() || !user) return;
 
-    await addDoc(collection(db, "orgs", org.id, "rooms"), {
-      orgId: org.id,
-      name: newRoomName.trim(),
+    await addDoc(collection(db, "teams", team.id, "huddles"), {
+      teamId: team.id,
+      name: newHuddleName.trim(),
       members: [],
       aiPresence: "on-demand" as AIPresence,
       createdBy: user.uid,
       createdAt: Date.now(),
     });
 
-    setNewRoomName("");
+    setNewHuddleName("");
     setCreating(false);
   };
 
   return (
     <div className="flex h-full flex-col bg-[#1e1e2e] text-[#cdd6f4]">
-      {/* Org header */}
+      {/* Team header */}
       <div className="border-b border-white/10 px-4 py-4">
         <div className="flex items-center gap-2.5">
           <img src="/logo.png" alt="" className="h-7 w-7 shrink-0" />
           <h2 className="truncate text-sm font-semibold text-white">
-            {org.name}
+            {team.name}
           </h2>
         </div>
       </div>
 
-      {/* Room list */}
+      {/* Huddle list */}
       <div className="flex-1 overflow-y-auto px-2 py-2">
-        {rooms.map((room) => (
+        {huddles.map((huddle) => (
           <button
-            key={room.id}
-            onClick={() => onSelectRoom(room)}
+            key={huddle.id}
+            onClick={() => onSelectHuddle(huddle)}
             className={`mb-0.5 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-              activeRoom?.id === room.id
+              activeHuddle?.id === huddle.id
                 ? "bg-indigo-500/20 text-white"
                 : "text-[#cdd6f4] hover:bg-[#313244]"
             }`}
           >
             <span className="text-gray-500">#</span>
-            <span className="truncate">{room.name}</span>
+            <span className="truncate">{huddle.name}</span>
           </button>
         ))}
 
         {creating ? (
-          <form onSubmit={handleCreateRoom} className="mt-1 px-1">
+          <form onSubmit={handleCreateHuddle} className="mt-1 px-1">
             <input
               type="text"
-              value={newRoomName}
-              onChange={(e) => setNewRoomName(e.target.value)}
-              placeholder="Room name"
+              value={newHuddleName}
+              onChange={(e) => setNewHuddleName(e.target.value)}
+              placeholder="Huddle name"
               className="w-full rounded-md border border-white/10 bg-[#313244] px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none"
               autoFocus
               onBlur={() => {
-                if (!newRoomName.trim()) setCreating(false);
+                if (!newHuddleName.trim()) setCreating(false);
               }}
             />
           </form>
@@ -106,7 +106,7 @@ export function Sidebar({ org, activeRoom, onSelectRoom }: SidebarProps) {
             className="mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-gray-500 transition-colors hover:bg-[#313244] hover:text-gray-300"
           >
             <span>+</span>
-            <span>New room</span>
+            <span>New huddle</span>
           </button>
         )}
       </div>
@@ -170,13 +170,13 @@ export function Sidebar({ org, activeRoom, onSelectRoom }: SidebarProps) {
               Join code
             </p>
             <p className="mb-3 text-center font-mono text-lg tracking-widest text-white">
-              {org.joinCode || "—"}
+              {team.joinCode || "—"}
             </p>
             <button
               onClick={() => {
-                const text = org.joinCode
-                  ? `Join my Huddle workspace!\nCode: ${org.joinCode}\nOr use this link: ${window.location.origin}/join/${org.id}`
-                  : `${window.location.origin}/join/${org.id}`;
+                const text = team.joinCode
+                  ? `Join my Huddle workspace!\nCode: ${team.joinCode}\nOr use this link: ${window.location.origin}/join/${team.id}`
+                  : `${window.location.origin}/join/${team.id}`;
                 navigator.clipboard.writeText(text);
                 setInviteCopied(true);
                 setTimeout(() => setInviteCopied(false), 2000);

@@ -1,13 +1,13 @@
 "use client";
 
-import type { Org, Room } from "@/types";
+import type { Team, Huddle } from "@/types";
 
 interface FilesPanelProps {
-  room: Room;
-  org: Org;
+  huddle: Huddle;
+  team: Team;
 }
 
-export function FilesPanel({ room, org }: FilesPanelProps) {
+export function FilesPanel({ huddle, team }: FilesPanelProps) {
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 text-center">
       <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">

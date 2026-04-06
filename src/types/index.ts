@@ -1,6 +1,6 @@
 export type AIPresence = "off" | "on-demand" | "active";
 
-export interface Org {
+export interface Team {
   id: string;
   name: string;
   members: string[]; // user UIDs
@@ -9,11 +9,11 @@ export interface Org {
   createdAt: number;
 }
 
-export interface Room {
+export interface Huddle {
   id: string;
-  orgId: string;
+  teamId: string;
   name: string;
-  members: string[]; // user UIDs, empty = open to all org members
+  members: string[]; // user UIDs, empty = open to all team members
   aiPresence: AIPresence;
   createdBy: string;
   createdAt: number;
@@ -21,7 +21,7 @@ export interface Room {
 
 export interface Message {
   id: string;
-  roomId: string;
+  huddleId: string;
   author: string; // user UID or "ai"
   authorName: string;
   authorPhoto?: string;
@@ -40,9 +40,9 @@ export interface FileAttachment {
   size: number;
 }
 
-export interface RoomFile {
+export interface HuddleFile {
   id: string;
-  roomId: string;
+  huddleId: string;
   name: string;
   url: string;
   type: string;
@@ -55,7 +55,7 @@ export interface Memory {
   id: string;
   key: string;
   value: string;
-  source: string; // which message/conversation it came from
+  source: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -69,7 +69,7 @@ export interface UserProfile {
 
 export interface Invite {
   id: string;
-  orgId: string;
+  teamId: string;
   email: string;
   invitedBy: string;
   createdAt: number;

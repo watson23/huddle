@@ -3,40 +3,40 @@
 import { useState, useEffect } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Org, Room } from "@/types";
+import type { Team, Huddle } from "@/types";
 import { Sidebar } from "./Sidebar";
-import { ChatRoom } from "./ChatRoom";
+import { ChatHuddle } from "./ChatHuddle";
 import { RightPanel } from "./RightPanel";
 
 interface AppShellProps {
-  org: Org;
+  team: Team;
 }
 
-export function AppShell({ org }: AppShellProps) {
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
-  const [activeRoom, setActiveRoom] = useState<Room | null>(null);
+export function AppShell({ team }: AppShellProps) {
+  const [activeHuddleId, setActiveHuddleId] = useState<string | null>(null);
+  const [activeHuddle, setActiveHuddle] = useState<Huddle | null>(null);
   const [rightPanel, setRightPanel] = useState<
     "closed" | "thread" | "memory" | "files"
   >("closed");
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Subscribe to active room changes (so AI presence toggle updates in real-time)
+  // Subscribe to active huddle changes (so AI presence toggle updates in real-time)
   useEffect(() => {
-    if (!activeRoomId) {
-      setActiveRoom(null);
+    if (!activeHuddleId) {
+      setActiveHuddle(null);
       return;
     }
     const unsub = onSnapshot(
-      doc(db, "orgs", org.id, "rooms", activeRoomId),
+      doc(db, "teams", team.id, "huddles", activeHuddleId),
       (snap) => {
         if (snap.exists()) {
-          setActiveRoom({ id: snap.id, ...snap.data() } as Room);
+          setActiveHuddle({ id: snap.id, ...snap.data() } as Huddle);
         }
       }
     );
     return unsub;
-  }, [org.id, activeRoomId]);
+  }, [team.id, activeHuddleId]);
 
   const openThread = (messageId: string) => {
     setActiveThreadId(messageId);
@@ -60,10 +60,10 @@ export function AppShell({ org }: AppShellProps) {
         }`}
       >
         <Sidebar
-          org={org}
-          activeRoom={activeRoom}
-          onSelectRoom={(room) => {
-            setActiveRoomId(room.id);
+          team={team}
+          activeHuddle={activeHuddle}
+          onSelectHuddle={(huddle) => {
+            setActiveHuddleId(huddle.id);
             setSidebarOpen(false);
           }}
         />
@@ -71,10 +71,10 @@ export function AppShell({ org }: AppShellProps) {
 
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {activeRoom ? (
-          <ChatRoom
-            room={activeRoom}
-            org={org}
+        {activeHuddle ? (
+          <ChatHuddle
+            huddle={activeHuddle}
+            team={team}
             onOpenThread={openThread}
             onToggleMemory={() =>
               setRightPanel((p) => (p === "memory" ? "closed" : "memory"))
@@ -91,20 +91,20 @@ export function AppShell({ org }: AppShellProps) {
                 onClick={() => setSidebarOpen(true)}
                 className="mb-4 rounded-lg bg-gray-100 px-4 py-2 text-sm md:hidden"
               >
-                Open rooms
+                Open huddles
               </button>
-              <p className="text-lg">Select a room to start chatting</p>
+              <p className="text-lg">Select a huddle to start chatting</p>
             </div>
           </div>
         )}
       </div>
 
       {/* Right panel */}
-      {rightPanel !== "closed" && activeRoom && (
+      {rightPanel !== "closed" && activeHuddle && (
         <RightPanel
           type={rightPanel}
-          room={activeRoom}
-          org={org}
+          huddle={activeHuddle}
+          team={team}
           threadId={activeThreadId}
           onClose={() => setRightPanel("closed")}
         />

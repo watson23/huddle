@@ -4,47 +4,47 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Org } from "@/types";
-import { CreateOrgForm } from "@/components/CreateOrgForm";
+import type { Team } from "@/types";
+import { CreateTeamForm } from "@/components/CreateTeamForm";
 import { AppShell } from "@/components/AppShell";
 
 export default function AppPage() {
   const { user } = useAuth();
-  const [org, setOrg] = useState<Org | null>(null);
+  const [team, setTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
-  const [needsOrg, setNeedsOrg] = useState(false);
+  const [needsTeam, setNeedsTeam] = useState(false);
 
   useEffect(() => {
     if (!user) return;
 
-    async function loadOrg() {
-      // Find an org where the user is a member
+    async function loadTeam() {
+      // Find a team where the user is a member
       const q = query(
-        collection(db, "orgs"),
+        collection(db, "teams"),
         where("members", "array-contains", user!.uid)
       );
       const snap = await getDocs(q);
       if (!snap.empty) {
-        const orgDoc = snap.docs[0];
-        const orgData = { id: orgDoc.id, ...orgDoc.data() } as Org;
+        const teamDoc = snap.docs[0];
+        const teamData = { id: teamDoc.id, ...teamDoc.data() } as Team;
 
-        // Backfill join code for orgs created before this feature
-        if (!orgData.joinCode) {
+        // Backfill join code for teams created before this feature
+        if (!teamData.joinCode) {
           const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
           let code = "";
           for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-          await updateDoc(doc(db, "orgs", orgDoc.id), { joinCode: code });
-          orgData.joinCode = code;
+          await updateDoc(doc(db, "teams", teamDoc.id), { joinCode: code });
+          teamData.joinCode = code;
         }
 
-        setOrg(orgData);
+        setTeam(teamData);
       } else {
-        setNeedsOrg(true);
+        setNeedsTeam(true);
       }
       setLoading(false);
     }
 
-    loadOrg();
+    loadTeam();
   }, [user]);
 
   if (loading) {
@@ -55,9 +55,9 @@ export default function AppPage() {
     );
   }
 
-  if (needsOrg) {
-    return <CreateOrgForm onCreated={(org) => { setOrg(org); setNeedsOrg(false); }} />;
+  if (needsTeam) {
+    return <CreateTeamForm onCreated={(team) => { setTeam(team); setNeedsTeam(false); }} />;
   }
 
-  return <AppShell org={org!} />;
+  return <AppShell team={team!} />;
 }

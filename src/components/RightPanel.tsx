@@ -1,22 +1,22 @@
 "use client";
 
-import type { Org, Room } from "@/types";
+import type { Team, Huddle } from "@/types";
 import { ThreadPanel } from "./ThreadPanel";
 import { MemoryPanel } from "./MemoryPanel";
 import { FilesPanel } from "./FilesPanel";
 
 interface RightPanelProps {
   type: "thread" | "memory" | "files";
-  room: Room;
-  org: Org;
+  huddle: Huddle;
+  team: Team;
   threadId: string | null;
   onClose: () => void;
 }
 
 export function RightPanel({
   type,
-  room,
-  org,
+  huddle,
+  team,
   threadId,
   onClose,
 }: RightPanelProps) {
@@ -42,10 +42,10 @@ export function RightPanel({
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {type === "thread" && threadId && (
-          <ThreadPanel room={room} org={org} threadId={threadId} />
+          <ThreadPanel huddle={huddle} team={team} threadId={threadId} />
         )}
-        {type === "memory" && <MemoryPanel room={room} org={org} />}
-        {type === "files" && <FilesPanel room={room} org={org} />}
+        {type === "memory" && <MemoryPanel huddle={huddle} team={team} />}
+        {type === "files" && <FilesPanel huddle={huddle} team={team} />}
       </div>
     </div>
   );

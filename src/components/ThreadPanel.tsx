@@ -10,23 +10,23 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Org, Room, Message } from "@/types";
+import type { Team, Huddle, Message } from "@/types";
 import { MessageInput } from "./MessageInput";
 
 interface ThreadPanelProps {
-  room: Room;
-  org: Org;
+  huddle: Huddle;
+  team: Team;
   threadId: string;
 }
 
-export function ThreadPanel({ room, org, threadId }: ThreadPanelProps) {
+export function ThreadPanel({ huddle, team, threadId }: ThreadPanelProps) {
   const [parentMessage, setParentMessage] = useState<Message | null>(null);
   const [replies, setReplies] = useState<Message[]>([]);
 
   useEffect(() => {
     // Load parent message
     getDoc(
-      doc(db, "orgs", org.id, "rooms", room.id, "messages", threadId)
+      doc(db, "teams", team.id, "huddles", huddle.id, "messages", threadId)
     ).then((snap) => {
       if (snap.exists()) {
         setParentMessage({ id: snap.id, ...snap.data() } as Message);
@@ -35,7 +35,7 @@ export function ThreadPanel({ room, org, threadId }: ThreadPanelProps) {
 
     // Listen to thread replies — filter client-side to avoid needing a composite index
     const q = query(
-      collection(db, "orgs", org.id, "rooms", room.id, "messages"),
+      collection(db, "teams", team.id, "huddles", huddle.id, "messages"),
       where("threadId", "==", threadId)
     );
 
@@ -47,7 +47,7 @@ export function ThreadPanel({ room, org, threadId }: ThreadPanelProps) {
     });
 
     return unsub;
-  }, [org.id, room.id, threadId]);
+  }, [team.id, huddle.id, threadId]);
 
   return (
     <div className="flex h-full flex-col">
@@ -102,7 +102,7 @@ export function ThreadPanel({ room, org, threadId }: ThreadPanelProps) {
       </div>
 
       {/* Thread input */}
-      <MessageInput room={room} org={org} threadId={threadId} />
+      <MessageInput huddle={huddle} team={team} threadId={threadId} />
     </div>
   );
 }

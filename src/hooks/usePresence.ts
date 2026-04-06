@@ -21,15 +21,15 @@ export interface PresenceEntry {
 const HEARTBEAT_INTERVAL = 30_000; // 30 seconds
 const ONLINE_THRESHOLD = 60_000; // consider offline after 60 seconds
 
-export function usePresence(orgId: string) {
+export function usePresence(teamId: string) {
   const { user } = useAuth();
   const [members, setMembers] = useState<PresenceEntry[]>([]);
 
   // Write presence heartbeat
   useEffect(() => {
-    if (!user || !orgId) return;
+    if (!user || !teamId) return;
 
-    const presenceRef = doc(db, "orgs", orgId, "presence", user.uid);
+    const presenceRef = doc(db, "teams", teamId, "presence", user.uid);
 
     const writePresence = () => {
       setDoc(presenceRef, {
@@ -57,14 +57,14 @@ export function usePresence(orgId: string) {
       window.removeEventListener("beforeunload", handleUnload);
       deleteDoc(presenceRef).catch(() => {});
     };
-  }, [user, orgId]);
+  }, [user, teamId]);
 
   // Listen to all presence entries
   useEffect(() => {
-    if (!orgId) return;
+    if (!teamId) return;
 
     const unsub = onSnapshot(
-      collection(db, "orgs", orgId, "presence"),
+      collection(db, "teams", teamId, "presence"),
       (snap) => {
         const entries = snap.docs.map((d) => d.data() as PresenceEntry);
         setMembers(entries);
@@ -72,7 +72,7 @@ export function usePresence(orgId: string) {
     );
 
     return unsub;
-  }, [orgId]);
+  }, [teamId]);
 
   const isOnline = (entry: PresenceEntry) =>
     Date.now() - entry.lastSeen < ONLINE_THRESHOLD;

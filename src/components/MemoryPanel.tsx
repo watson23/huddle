@@ -10,35 +10,35 @@ import {
   query,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Org, Room, Memory } from "@/types";
+import type { Team, Huddle, Memory } from "@/types";
 
 interface MemoryPanelProps {
-  room: Room;
-  org: Org;
+  huddle: Huddle;
+  team: Team;
 }
 
-export function MemoryPanel({ room, org }: MemoryPanelProps) {
-  const [roomMemories, setRoomMemories] = useState<Memory[]>([]);
-  const [orgMemories, setOrgMemories] = useState<Memory[]>([]);
-  const [tab, setTab] = useState<"room" | "org">("room");
+export function MemoryPanel({ huddle, team }: MemoryPanelProps) {
+  const [huddleMemories, setHuddleMemories] = useState<Memory[]>([]);
+  const [teamMemories, setTeamMemories] = useState<Memory[]>([]);
+  const [tab, setTab] = useState<"huddle" | "team">("huddle");
 
   useEffect(() => {
-    const roomQ = query(
-      collection(db, "orgs", org.id, "rooms", room.id, "memory"),
+    const huddleQ = query(
+      collection(db, "teams", team.id, "huddles", huddle.id, "memory"),
       orderBy("createdAt", "desc")
     );
-    const unsub1 = onSnapshot(roomQ, (snap) => {
-      setRoomMemories(
+    const unsub1 = onSnapshot(huddleQ, (snap) => {
+      setHuddleMemories(
         snap.docs.map((d) => ({ id: d.id, ...d.data() } as Memory))
       );
     });
 
-    const orgQ = query(
-      collection(db, "orgs", org.id, "memory"),
+    const teamQ = query(
+      collection(db, "teams", team.id, "memory"),
       orderBy("createdAt", "desc")
     );
-    const unsub2 = onSnapshot(orgQ, (snap) => {
-      setOrgMemories(
+    const unsub2 = onSnapshot(teamQ, (snap) => {
+      setTeamMemories(
         snap.docs.map((d) => ({ id: d.id, ...d.data() } as Memory))
       );
     });
@@ -47,43 +47,43 @@ export function MemoryPanel({ room, org }: MemoryPanelProps) {
       unsub1();
       unsub2();
     };
-  }, [org.id, room.id]);
+  }, [team.id, huddle.id]);
 
   const deleteMemory = async (memId: string) => {
-    if (tab === "room") {
+    if (tab === "huddle") {
       await deleteDoc(
-        doc(db, "orgs", org.id, "rooms", room.id, "memory", memId)
+        doc(db, "teams", team.id, "huddles", huddle.id, "memory", memId)
       );
     } else {
-      await deleteDoc(doc(db, "orgs", org.id, "memory", memId));
+      await deleteDoc(doc(db, "teams", team.id, "memory", memId));
     }
   };
 
-  const memories = tab === "room" ? roomMemories : orgMemories;
+  const memories = tab === "huddle" ? huddleMemories : teamMemories;
 
   return (
     <div className="flex h-full flex-col">
       {/* Tabs */}
       <div className="flex border-b border-gray-100">
         <button
-          onClick={() => setTab("room")}
+          onClick={() => setTab("huddle")}
           className={`flex-1 py-2 text-center text-xs font-medium ${
-            tab === "room"
+            tab === "huddle"
               ? "border-b-2 border-indigo-500 text-indigo-600"
               : "text-gray-400 hover:text-gray-600"
           }`}
         >
-          Room ({roomMemories.length})
+          Huddle ({huddleMemories.length})
         </button>
         <button
-          onClick={() => setTab("org")}
+          onClick={() => setTab("team")}
           className={`flex-1 py-2 text-center text-xs font-medium ${
-            tab === "org"
+            tab === "team"
               ? "border-b-2 border-indigo-500 text-indigo-600"
               : "text-gray-400 hover:text-gray-600"
           }`}
         >
-          Organization ({orgMemories.length})
+          Team ({teamMemories.length})
         </button>
       </div>
 
