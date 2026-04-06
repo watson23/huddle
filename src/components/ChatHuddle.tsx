@@ -7,6 +7,8 @@ import {
   orderBy,
   onSnapshot,
   addDoc,
+  doc,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Team, Huddle, Message } from "@/types";
@@ -43,6 +45,9 @@ export function ChatHuddle({
   const [streamingText, setStreamingText] = useState("");
   const [raisedHand, setRaisedHand] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(huddle.name);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const evalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const memoryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -230,9 +235,60 @@ export function ChatHuddle({
           </svg>
         </button>
 
-        <h1 className="text-lg font-semibold text-gray-900">
-          # {huddle.name}
-        </h1>
+        {editingName ? (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (nameValue.trim() && nameValue.trim() !== huddle.name) {
+                await updateDoc(doc(db, "teams", team.id, "huddles", huddle.id), {
+                  name: nameValue.trim(),
+                });
+              }
+              setEditingName(false);
+            }}
+            className="flex items-center gap-1"
+          >
+            <span className="text-lg text-gray-400">#</span>
+            <input
+              ref={nameInputRef}
+              value={nameValue}
+              onChange={(e) => setNameValue(e.target.value)}
+              onBlur={() => {
+                if (nameValue.trim() && nameValue.trim() !== huddle.name) {
+                  updateDoc(doc(db, "teams", team.id, "huddles", huddle.id), {
+                    name: nameValue.trim(),
+                  });
+                }
+                setEditingName(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setNameValue(huddle.name);
+                  setEditingName(false);
+                }
+              }}
+              className="w-48 rounded-md border border-indigo-300 bg-white px-2 py-0.5 text-lg font-semibold text-gray-900 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              autoFocus
+            />
+          </form>
+        ) : (
+          <button
+            onClick={() => {
+              setNameValue(huddle.name);
+              setEditingName(true);
+              setTimeout(() => nameInputRef.current?.select(), 0);
+            }}
+            className="group flex items-center gap-1 rounded-md px-1 py-0.5 transition-colors hover:bg-gray-100"
+            title="Click to rename"
+          >
+            <h1 className="text-lg font-semibold text-gray-900">
+              # {huddle.name}
+            </h1>
+            <svg className="h-3.5 w-3.5 text-gray-300 opacity-0 transition-opacity group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </button>
+        )}
 
         <div className="flex-1" />
 
