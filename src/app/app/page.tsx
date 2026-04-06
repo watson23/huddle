@@ -8,24 +8,27 @@ import type { Team } from "@/types";
 import { CreateTeamForm } from "@/components/CreateTeamForm";
 import { AppShell } from "@/components/AppShell";
 
+const LS_KEY = "shodohuddle_activeTeamId";
+
 export default function AppPage() {
   const { user } = useAuth();
-  const [team, setTeam] = useState<Team | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [needsTeam, setNeedsTeam] = useState(false);
+  const [showCreateTeam, setShowCreateTeam] = useState(false);
 
   useEffect(() => {
     if (!user) return;
 
-    async function loadTeam() {
-      // Find a team where the user is a member
+    async function loadTeams() {
       const q = query(
         collection(db, "teams"),
         where("members", "array-contains", user!.uid)
       );
       const snap = await getDocs(q);
-      if (!snap.empty) {
-        const teamDoc = snap.docs[0];
+      const teamList: Team[] = [];
+
+      for (const teamDoc of snap.docs) {
         const teamData = { id: teamDoc.id, ...teamDoc.data() } as Team;
 
         // Backfill join code for teams created before this feature
@@ -37,15 +40,34 @@ export default function AppPage() {
           teamData.joinCode = code;
         }
 
-        setTeam(teamData);
-      } else {
-        setNeedsTeam(true);
+        teamList.push(teamData);
       }
+
+      setTeams(teamList);
+
+      // Restore last active team from localStorage, or default to first
+      if (teamList.length > 0) {
+        const stored = localStorage.getItem(LS_KEY);
+        const match = teamList.find((t) => t.id === stored);
+        setActiveTeamId(match ? match.id : teamList[0].id);
+      }
+
       setLoading(false);
     }
 
-    loadTeam();
+    loadTeams();
   }, [user]);
+
+  const switchTeam = (teamId: string) => {
+    setActiveTeamId(teamId);
+    localStorage.setItem(LS_KEY, teamId);
+  };
+
+  const handleTeamCreated = (team: Team) => {
+    setTeams((prev) => [...prev, team]);
+    switchTeam(team.id);
+    setShowCreateTeam(false);
+  };
 
   if (loading) {
     return (
@@ -55,9 +77,23 @@ export default function AppPage() {
     );
   }
 
-  if (needsTeam) {
-    return <CreateTeamForm onCreated={(team) => { setTeam(team); setNeedsTeam(false); }} />;
+  if (teams.length === 0 || showCreateTeam) {
+    return (
+      <CreateTeamForm
+        onCreated={handleTeamCreated}
+        onClose={teams.length > 0 ? () => setShowCreateTeam(false) : undefined}
+      />
+    );
   }
 
-  return <AppShell team={team!} />;
+  const activeTeam = teams.find((t) => t.id === activeTeamId) || teams[0];
+
+  return (
+    <AppShell
+      team={activeTeam}
+      teams={teams}
+      onSwitchTeam={switchTeam}
+      onCreateTeam={() => setShowCreateTeam(true)}
+    />
+  );
 }

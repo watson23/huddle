@@ -15,17 +15,21 @@ import type { Team, Huddle, AIPresence } from "@/types";
 
 interface SidebarProps {
   team: Team;
+  teams: Team[];
+  onSwitchTeam: (teamId: string) => void;
+  onCreateTeam: () => void;
   activeHuddle: Huddle | null;
   onSelectHuddle: (huddle: Huddle) => void;
 }
 
-export function Sidebar({ team, activeHuddle, onSelectHuddle }: SidebarProps) {
+export function Sidebar({ team, teams, onSwitchTeam, onCreateTeam, activeHuddle, onSelectHuddle }: SidebarProps) {
   const { user, signOut } = useAuth();
   const [huddles, setHuddles] = useState<Huddle[]>([]);
   const [creating, setCreating] = useState(false);
   const [newHuddleName, setNewHuddleName] = useState("");
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [showTeamSwitcher, setShowTeamSwitcher] = useState(false);
   const { members, isOnline } = usePresence(team.id);
 
   useEffect(() => {
@@ -59,14 +63,64 @@ export function Sidebar({ team, activeHuddle, onSelectHuddle }: SidebarProps) {
 
   return (
     <div className="flex h-full flex-col bg-[#1e1e2e] text-[#cdd6f4]">
-      {/* Team header */}
-      <div className="border-b border-white/10 px-4 py-4">
-        <div className="flex items-center gap-2.5">
+      {/* Team header / switcher */}
+      <div className="relative border-b border-white/10">
+        <button
+          onClick={() => setShowTeamSwitcher((v) => !v)}
+          className="flex w-full items-center gap-2.5 px-4 py-4 transition-colors hover:bg-[#313244]"
+        >
           <img src="/logo.png" alt="" className="h-7 w-7 shrink-0" />
           <h2 className="truncate text-sm font-semibold text-white">
             {team.name}
           </h2>
-        </div>
+          <svg
+            className={`ml-auto h-4 w-4 shrink-0 text-gray-500 transition-transform ${showTeamSwitcher ? "rotate-180" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {showTeamSwitcher && (
+          <div className="absolute left-2 right-2 top-full z-40 mt-1 rounded-lg border border-white/10 bg-[#313244] py-1 shadow-xl">
+            {teams.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  onSwitchTeam(t.id);
+                  setShowTeamSwitcher(false);
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                  t.id === team.id
+                    ? "bg-indigo-500/20 text-white"
+                    : "text-gray-300 hover:bg-white/5"
+                }`}
+              >
+                {t.id === team.id && (
+                  <svg className="h-3.5 w-3.5 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                <span className={t.id === team.id ? "" : "ml-5.5"}>{t.name}</span>
+              </button>
+            ))}
+            <div className="mx-2 my-1 border-t border-white/10" />
+            <button
+              onClick={() => {
+                setShowTeamSwitcher(false);
+                onCreateTeam();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-400 transition-colors hover:bg-white/5 hover:text-gray-200"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create or join a team
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Huddle list */}

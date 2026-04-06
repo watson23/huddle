@@ -26,9 +26,10 @@ function generateJoinCode(): string {
 
 interface CreateTeamFormProps {
   onCreated: (team: Team) => void;
+  onClose?: () => void;
 }
 
-export function CreateTeamForm({ onCreated }: CreateTeamFormProps) {
+export function CreateTeamForm({ onCreated, onClose }: CreateTeamFormProps) {
   const { user } = useAuth();
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
@@ -102,7 +103,17 @@ export function CreateTeamForm({ onCreated }: CreateTeamFormProps) {
   if (mode === "choose") {
     return (
       <div className="flex h-full items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
-        <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg">
+        <div className="relative w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg">
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="absolute right-4 top-4 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
           <div className="mb-6 flex flex-col items-center">
             <img src="/logo.png" alt="ShodoHuddle" className="h-14 w-auto" />
             <img src="/logo-text.png" alt="shodohuddle" className="mt-2 h-4 w-auto" />

@@ -10,9 +10,12 @@ import { RightPanel } from "./RightPanel";
 
 interface AppShellProps {
   team: Team;
+  teams: Team[];
+  onSwitchTeam: (teamId: string) => void;
+  onCreateTeam: () => void;
 }
 
-export function AppShell({ team }: AppShellProps) {
+export function AppShell({ team, teams, onSwitchTeam, onCreateTeam }: AppShellProps) {
   const [activeHuddleId, setActiveHuddleId] = useState<string | null>(null);
   const [activeHuddle, setActiveHuddle] = useState<Huddle | null>(null);
   const [rightPanel, setRightPanel] = useState<
@@ -61,6 +64,9 @@ export function AppShell({ team }: AppShellProps) {
       >
         <Sidebar
           team={team}
+          teams={teams}
+          onSwitchTeam={onSwitchTeam}
+          onCreateTeam={onCreateTeam}
           activeHuddle={activeHuddle}
           onSelectHuddle={(huddle) => {
             setActiveHuddleId(huddle.id);
