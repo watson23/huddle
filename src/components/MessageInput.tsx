@@ -28,7 +28,12 @@ export function MessageInput({
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const sendMessage = async () => {
+  const aiEnabled = huddle.aiPresence !== "off";
+
+  // Match @ai only as a standalone mention, not inside words like email@ai.com.
+  const mentionsAI = (msg: string) => /(^|\s)@ai\b/i.test(msg);
+
+  const sendMessage = async (forceAI = false) => {
     if (!text.trim() || !user || sending) return;
 
     const messageText = text.trim();
@@ -57,11 +62,11 @@ export function MessageInput({
         }
       );
 
-      // Only trigger AI on explicit @ai mention
-      // Active mode is handled by ChatHuddle's evaluation system
+      // Trigger the AI when the user explicitly asks for it — via the "Ask AI"
+      // button (forceAI) or an @ai mention. Active mode's proactive replies are
+      // handled separately by ChatHuddle's evaluation system.
       const shouldTriggerAI =
-        huddle.aiPresence !== "off" &&
-        messageText.toLowerCase().includes("@ai");
+        aiEnabled && (forceAI || mentionsAI(messageText));
 
       if (shouldTriggerAI) {
         await triggerAIResponse(messageText);
@@ -132,6 +137,8 @@ export function MessageInput({
     }
   };
 
+  const canSend = !!text.trim() && !sending;
+
   const handleInput = () => {
     const ta = textareaRef.current;
     if (ta) {
@@ -150,17 +157,31 @@ export function MessageInput({
           onKeyDown={handleKeyDown}
           onInput={handleInput}
           placeholder={
-            huddle.aiPresence === "on-demand"
-              ? "Type a message... (use @ai to ask the AI)"
+            aiEnabled
+              ? "Type a message... (or tap Ask AI)"
               : "Type a message..."
           }
           className="flex-1 resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:border-indigo-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300"
           rows={1}
           disabled={sending}
         />
+        {aiEnabled && (
+          <button
+            onClick={() => sendMessage(true)}
+            disabled={!canSend}
+            title="Send and ask the AI to respond"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-100 disabled:opacity-40"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+            Ask AI
+          </button>
+        )}
         <button
-          onClick={sendMessage}
-          disabled={!text.trim() || sending}
+          onClick={() => sendMessage()}
+          disabled={!canSend}
+          title="Send message"
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500 text-white transition-colors hover:bg-indigo-600 disabled:opacity-40"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

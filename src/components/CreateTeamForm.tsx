@@ -52,6 +52,17 @@ export function CreateTeamForm({ onCreated, onClose }: CreateTeamFormProps) {
       createdAt: Date.now(),
     });
 
+    // Seed a default huddle so the team lands in a real conversation instead of
+    // an empty "select a huddle" screen.
+    await addDoc(collection(db, "teams", docRef.id, "huddles"), {
+      teamId: docRef.id,
+      name: "general",
+      members: [],
+      aiPresence: "on-demand",
+      createdBy: user.uid,
+      createdAt: Date.now(),
+    });
+
     onCreated({
       id: docRef.id,
       name: name.trim(),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   collection,
   query,
@@ -32,6 +32,13 @@ export function Sidebar({ team, teams, onSwitchTeam, onCreateTeam, activeHuddle,
   const [showTeamSwitcher, setShowTeamSwitcher] = useState(false);
   const { members, isOnline } = usePresence(team.id);
 
+  // Keep latest values for the snapshot closure without resubscribing.
+  const activeHuddleRef = useRef(activeHuddle);
+  activeHuddleRef.current = activeHuddle;
+  const onSelectHuddleRef = useRef(onSelectHuddle);
+  onSelectHuddleRef.current = onSelectHuddle;
+  const autoSelectedTeamRef = useRef<string | null>(null);
+
   useEffect(() => {
     const q = query(collection(db, "teams", team.id, "huddles"));
     const unsub = onSnapshot(q, (snap) => {
@@ -40,6 +47,17 @@ export function Sidebar({ team, teams, onSwitchTeam, onCreateTeam, activeHuddle,
       );
       huddleList.sort((a, b) => a.createdAt - b.createdAt);
       setHuddles(huddleList);
+
+      // Land the user in a huddle instead of the empty "select a huddle" state —
+      // but only once per team, and never override an existing selection.
+      if (
+        autoSelectedTeamRef.current !== team.id &&
+        !activeHuddleRef.current &&
+        huddleList.length > 0
+      ) {
+        autoSelectedTeamRef.current = team.id;
+        onSelectHuddleRef.current(huddleList[0]);
+      }
     });
     return unsub;
   }, [team.id]);
