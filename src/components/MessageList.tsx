@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Message } from "@/types";
 import { Markdown } from "./Markdown";
+
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "🎉", "👀", "🙏"];
 
 interface MessageListProps {
   messages: Message[];
@@ -83,6 +85,7 @@ function MessageBubble({
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
   const [copied, setCopied] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
 
   const messageRef = doc(
     db,
@@ -93,6 +96,21 @@ function MessageBubble({
     "messages",
     message.id
   );
+
+  const reactionEntries = Object.entries(message.reactions || {}).filter(
+    ([, uids]) => uids.length > 0
+  );
+
+  const toggleReaction = async (emoji: string) => {
+    if (!currentUserId) return;
+    const alreadyReacted = message.reactions?.[emoji]?.includes(currentUserId);
+    await updateDoc(messageRef, {
+      [`reactions.${emoji}`]: alreadyReacted
+        ? arrayRemove(currentUserId)
+        : arrayUnion(currentUserId),
+    });
+    setShowReactionPicker(false);
+  };
 
   const copy = async () => {
     await navigator.clipboard.writeText(message.text);
@@ -222,9 +240,39 @@ function MessageBubble({
           )}
         </div>
 
+        {/* Reaction pills (always visible) */}
+        {reactionEntries.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {reactionEntries.map(([emoji, uids]) => {
+              const mine = !!currentUserId && uids.includes(currentUserId);
+              return (
+                <button
+                  key={emoji}
+                  onClick={() => toggleReaction(emoji)}
+                  className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                    mine
+                      ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                      : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                  }`}
+                  title={`${uids.length} reaction${uids.length === 1 ? "" : "s"}`}
+                >
+                  <span>{emoji}</span>
+                  <span>{uids.length}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Action row */}
         {!editing && (
-          <div className="mt-1 flex items-center gap-3 text-xs text-gray-400 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="relative mt-1 flex items-center gap-3 text-xs text-gray-400 opacity-0 transition-opacity group-hover:opacity-100">
+            <button
+              onClick={() => setShowReactionPicker((v) => !v)}
+              className="hover:text-indigo-500"
+            >
+              React
+            </button>
             <button onClick={onOpenThread} className="hover:text-indigo-500">
               Reply in thread
             </button>
@@ -246,6 +294,20 @@ function MessageBubble({
                   Delete
                 </button>
               </>
+            )}
+
+            {showReactionPicker && (
+              <div className="absolute bottom-full left-0 z-10 mb-1 flex gap-1 rounded-full border border-gray-200 bg-white px-2 py-1 shadow-md">
+                {QUICK_REACTIONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => toggleReaction(emoji)}
+                    className="rounded-full px-1 text-base leading-none transition-transform hover:scale-125"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         )}

@@ -36,6 +36,7 @@ export interface Message {
   attachments?: FileAttachment[];
   createdAt: number;
   editedAt?: number;
+  reactions?: Record<string, string[]>; // emoji -> user UIDs who reacted
 }
 
 export interface FileAttachment {
