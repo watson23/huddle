@@ -152,7 +152,7 @@ function MessageBubble({
         </div>
       )}
 
-      <div className="max-w-[80%]">
+      <div className={`max-w-[80%] ${editing ? "w-full" : ""}`}>
         <p
           className={`mb-1 text-xs font-medium ${
             isAI ? "text-indigo-600" : "text-gray-500"
