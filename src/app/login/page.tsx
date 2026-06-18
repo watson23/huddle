@@ -72,6 +72,13 @@ export default function LoginPage() {
         {process.env.NODE_ENV === "development" && (
           <DevLoginButton />
         )}
+
+        <a
+          href="/help"
+          className="mt-5 block text-center text-xs text-gray-400 hover:text-gray-600"
+        >
+          How it works
+        </a>
       </div>
     </div>
   );

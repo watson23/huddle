@@ -97,7 +97,15 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
 
         {/* Footer */}
         <div className="mt-6 border-t border-gray-100 pt-4">
-          <p className="text-center text-xs text-gray-400">
+          <a
+            href="/help"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-center text-sm font-medium text-indigo-600 hover:text-indigo-700"
+          >
+            How it works — full guide →
+          </a>
+          <p className="mt-3 text-center text-xs text-gray-400">
             Part of the Shodo product family
           </p>
         </div>
