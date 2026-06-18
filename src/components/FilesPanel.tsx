@@ -5,6 +5,7 @@ import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { uploadHuddleFile, formatBytes } from "@/lib/storage-helpers";
+import { FILE_UPLOAD_ENABLED } from "@/lib/features";
 import type { Team, Huddle, HuddleFile } from "@/types";
 
 interface FilesPanelProps {
@@ -20,6 +21,7 @@ export function FilesPanel({ huddle, team }: FilesPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (!FILE_UPLOAD_ENABLED) return;
     const q = query(
       collection(db, "teams", team.id, "huddles", huddle.id, "files"),
       orderBy("createdAt", "desc")
@@ -29,6 +31,23 @@ export function FilesPanel({ huddle, team }: FilesPanelProps) {
     });
     return unsub;
   }, [team.id, huddle.id]);
+
+  if (!FILE_UPLOAD_ENABLED) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
+          <svg className="h-6 w-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+          </svg>
+        </div>
+        <p className="text-sm font-medium text-gray-700">File sharing</p>
+        <p className="mt-1 text-xs leading-relaxed text-gray-400">
+          Not enabled yet — we&apos;re gauging interest first. If sharing files
+          in your huddles would be useful, let us know and we&apos;ll turn it on.
+        </p>
+      </div>
+    );
+  }
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
