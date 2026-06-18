@@ -9,6 +9,7 @@ import {
   addDoc,
   doc,
   updateDoc,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Team, Huddle, Message } from "@/types";
@@ -23,7 +24,6 @@ interface ChatHuddleProps {
   team: Team;
   onOpenThread: (messageId: string) => void;
   onToggleMemory: () => void;
-  onToggleFiles: () => void;
   onMenuClick: () => void;
 }
 
@@ -37,14 +37,16 @@ export function ChatHuddle({
   team,
   onOpenThread,
   onToggleMemory,
-  onToggleFiles,
   onMenuClick,
 }: ChatHuddleProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [aiStreaming, setAiStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [raisedHand, setRaisedHand] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
+
+  // Raised-hand state lives on the huddle doc (shared across all members),
+  // so it arrives via the live huddle subscription in AppShell.
+  const raisedHand = huddle.aiRaisedHand?.teaser ?? null;
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(huddle.name);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -125,8 +127,11 @@ export function ChatHuddle({
   const runEvaluation = useCallback(async () => {
     if (aiStreaming) return;
 
+    // The server coordinates across clients and is the single writer: on SPEAK
+    // it posts the message itself, on RAISE_HAND it sets huddle.aiRaisedHand.
+    // The client just triggers the evaluation.
     try {
-      const res = await fetch("/api/ai/evaluate", {
+      await fetch("/api/ai/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -134,33 +139,36 @@ export function ChatHuddle({
           huddleId: huddle.id,
         }),
       });
-
-      const data = await res.json();
-
-      if (data.decision === "RAISE_HAND" && data.teaser) {
-        setRaisedHand(data.teaser);
-      } else if (data.decision === "SPEAK" && data.message) {
-        await addDoc(
-          collection(db, "teams", team.id, "huddles", huddle.id, "messages"),
-          {
-            huddleId: huddle.id,
-            author: "ai",
-            authorName: "Huddle AI",
-            text: data.message,
-            isAI: true,
-            threadId: null,
-            attachments: [],
-            createdAt: Date.now(),
-          }
-        );
-      }
     } catch (err) {
       console.error("AI evaluation error:", err);
     }
   }, [team.id, huddle.id, aiStreaming]);
 
+  const huddleRef = doc(db, "teams", team.id, "huddles", huddle.id);
+
+  const dismissRaisedHand = async () => {
+    await updateDoc(huddleRef, { aiRaisedHand: null }).catch((err) =>
+      console.error("Dismiss raised hand error:", err)
+    );
+  };
+
   const handleExpandRaisedHand = async () => {
-    setRaisedHand(null);
+    // Only one member should turn the hand into a real reply. Atomically claim
+    // it by clearing the shared field; if it's already gone, someone beat us.
+    let claimed = false;
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(huddleRef);
+        if (!snap.data()?.aiRaisedHand) return; // already expanded/dismissed
+        tx.update(huddleRef, { aiRaisedHand: null });
+        claimed = true;
+      });
+    } catch (err) {
+      console.error("Expand raised hand error:", err);
+      return;
+    }
+    if (!claimed) return;
+
     setAiStreaming(true);
     try {
       const res = await fetch("/api/ai/respond", {
@@ -215,9 +223,9 @@ export function ChatHuddle({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText]);
 
-  // Reset raised hand when switching huddles
+  // Reset per-huddle trigger counters when switching huddles. (The raised hand
+  // itself is shared state on the huddle doc, so it doesn't reset here.)
   useEffect(() => {
-    setRaisedHand(null);
     lastEvalCountRef.current = 0;
     lastMemoryCountRef.current = 0;
   }, [huddle.id]);
@@ -304,15 +312,8 @@ export function ChatHuddle({
           </svg>
         </button>
 
-        <button
-          onClick={onToggleFiles}
-          className="rounded p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-          title="Files"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-          </svg>
-        </button>
+        {/* Files: hidden until storage upload is actually wired up.
+            Re-enable this button (and the "files" RightPanel case) when ready. */}
 
         {/* Brand mark */}
         <button
@@ -340,7 +341,7 @@ export function ChatHuddle({
         <AIRaisedHand
           teaser={raisedHand}
           onExpand={handleExpandRaisedHand}
-          onDismiss={() => setRaisedHand(null)}
+          onDismiss={dismissRaisedHand}
         />
       )}
 

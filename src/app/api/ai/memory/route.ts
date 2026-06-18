@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { claimAITurn } from "@/lib/ai-locks";
 import Anthropic from "@anthropic-ai/sdk";
 import type { Message } from "@/types";
 
@@ -51,6 +52,15 @@ export async function POST(req: NextRequest) {
 
   if (messages.length < 3) {
     return NextResponse.json({ extracted: 0 });
+  }
+
+  // De-dupe across clients: every member's timer fires this route, but only one
+  // should extract for a given conversation state, or we'd save the same
+  // memories N times. Claim keyed on the latest message.
+  const latestMessageId = messages[messages.length - 1].id;
+  const won = await claimAITurn(teamId, huddleId, "memory", latestMessageId);
+  if (!won) {
+    return NextResponse.json({ extracted: 0, skipped: true });
   }
 
   const conversationText = messages

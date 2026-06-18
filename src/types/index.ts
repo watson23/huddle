@@ -15,6 +15,10 @@ export interface Huddle {
   name: string;
   members: string[]; // user UIDs, empty = open to all team members
   aiPresence: AIPresence;
+  // Active mode: when the AI wants to chime in but isn't sure, it "raises its
+  // hand". Stored on the huddle (not client state) so every member sees the
+  // same pending hand, and expanding it can be de-duplicated across clients.
+  aiRaisedHand?: { teaser: string; messageId: string } | null;
   createdBy: string;
   createdAt: number;
 }

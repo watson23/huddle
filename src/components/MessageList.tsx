@@ -1,6 +1,7 @@
 "use client";
 
 import type { Message } from "@/types";
+import { Markdown } from "./Markdown";
 
 interface MessageListProps {
   messages: Message[];
@@ -41,7 +42,7 @@ export function MessageList({
               Huddle AI
             </p>
             <div className="rounded-2xl rounded-tl-sm bg-indigo-50 px-4 py-2.5 text-sm text-gray-800 ring-1 ring-indigo-100">
-              {streamingText}
+              <Markdown>{streamingText}</Markdown>
               <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-indigo-400" />
             </div>
           </div>
@@ -102,7 +103,11 @@ function MessageBubble({
               : "rounded-tl-sm bg-white text-gray-800 shadow-sm ring-1 ring-gray-100"
           }`}
         >
-          <p className="whitespace-pre-wrap">{message.text}</p>
+          {isAI ? (
+            <Markdown>{message.text}</Markdown>
+          ) : (
+            <p className="whitespace-pre-wrap">{message.text}</p>
+          )}
 
           {message.attachments && message.attachments.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">

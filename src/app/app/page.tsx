@@ -15,44 +15,52 @@ export default function AppPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
 
   useEffect(() => {
     if (!user) return;
 
     async function loadTeams() {
-      const q = query(
-        collection(db, "teams"),
-        where("members", "array-contains", user!.uid)
-      );
-      const snap = await getDocs(q);
-      const teamList: Team[] = [];
+      try {
+        const q = query(
+          collection(db, "teams"),
+          where("members", "array-contains", user!.uid)
+        );
+        const snap = await getDocs(q);
+        const teamList: Team[] = [];
 
-      for (const teamDoc of snap.docs) {
-        const teamData = { id: teamDoc.id, ...teamDoc.data() } as Team;
+        for (const teamDoc of snap.docs) {
+          const teamData = { id: teamDoc.id, ...teamDoc.data() } as Team;
 
-        // Backfill join code for teams created before this feature
-        if (!teamData.joinCode) {
-          const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-          let code = "";
-          for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-          await updateDoc(doc(db, "teams", teamDoc.id), { joinCode: code });
-          teamData.joinCode = code;
+          // Backfill join code for teams created before this feature
+          if (!teamData.joinCode) {
+            const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+            let code = "";
+            for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+            await updateDoc(doc(db, "teams", teamDoc.id), { joinCode: code });
+            teamData.joinCode = code;
+          }
+
+          teamList.push(teamData);
         }
 
-        teamList.push(teamData);
+        setTeams(teamList);
+
+        // Restore last active team from localStorage, or default to first
+        if (teamList.length > 0) {
+          const stored = localStorage.getItem(LS_KEY);
+          const match = teamList.find((t) => t.id === stored);
+          setActiveTeamId(match ? match.id : teamList[0].id);
+        }
+      } catch (err) {
+        console.error("Failed to load teams:", err);
+        setError(
+          "Couldn't load your huddles. This is usually a Firestore permissions issue — check the database security rules."
+        );
+      } finally {
+        setLoading(false);
       }
-
-      setTeams(teamList);
-
-      // Restore last active team from localStorage, or default to first
-      if (teamList.length > 0) {
-        const stored = localStorage.getItem(LS_KEY);
-        const match = teamList.find((t) => t.id === stored);
-        setActiveTeamId(match ? match.id : teamList[0].id);
-      }
-
-      setLoading(false);
     }
 
     loadTeams();
@@ -73,6 +81,22 @@ export default function AppPage() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-lg">
+          <p className="text-sm text-gray-700">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-600"
+          >
+            Try again
+          </button>
+        </div>
       </div>
     );
   }

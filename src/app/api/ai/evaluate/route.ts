@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { claimAITurn } from "@/lib/ai-locks";
 import Anthropic from "@anthropic-ai/sdk";
 import type { Message, Memory } from "@/types";
 
@@ -64,6 +65,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ decision: "SILENT" });
   }
 
+  // Coordinate across clients: only one member's browser should actually drive
+  // the AI for a given conversation state. Claim the turn keyed on the latest
+  // message; losers bail out so the AI doesn't speak two or three times.
+  const latestMessageId = messages[messages.length - 1].id;
+  const won = await claimAITurn(teamId, huddleId, "eval", latestMessageId);
+  if (!won) {
+    return NextResponse.json({ decision: "SKIPPED" });
+  }
+
   // Fetch memories for context
   const huddleMemSnap = await db
     .collection("teams")
@@ -90,7 +100,7 @@ export async function POST(req: NextRequest) {
     .join("\n");
 
   const response = await getClient().messages.create({
-    model: "claude-haiku-3-5-20241022",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 256,
     system: EVALUATION_PROMPT + memoryContext,
     messages: [
@@ -104,20 +114,39 @@ export async function POST(req: NextRequest) {
   const text =
     response.content[0].type === "text" ? response.content[0].text.trim() : "";
 
-  if (text === "SILENT") {
-    return NextResponse.json({ decision: "SILENT" });
-  }
+  const huddleRef = db
+    .collection("teams")
+    .doc(teamId)
+    .collection("huddles")
+    .doc(huddleId);
 
   if (text.startsWith("RAISE_HAND:")) {
     const teaser = text.slice("RAISE_HAND:".length).trim();
+    // Share the raised hand on the huddle so every member sees it (and only one
+    // can expand it). Replaces any earlier hand.
+    await huddleRef.update({
+      aiRaisedHand: { teaser, messageId: latestMessageId },
+    });
     return NextResponse.json({ decision: "RAISE_HAND", teaser });
   }
 
   if (text.startsWith("SPEAK:")) {
     const message = text.slice("SPEAK:".length).trim();
-    return NextResponse.json({ decision: "SPEAK", message });
+    // Post server-side so it happens exactly once, and clear any pending hand.
+    await messagesRef.add({
+      huddleId,
+      author: "ai",
+      authorName: "Huddle AI",
+      text: message,
+      isAI: true,
+      threadId: null,
+      attachments: [],
+      createdAt: Date.now(),
+    });
+    await huddleRef.update({ aiRaisedHand: null });
+    return NextResponse.json({ decision: "SPEAK" });
   }
 
-  // If the response doesn't match the expected format, default to SILENT
+  // SILENT, or a response that doesn't match the expected format.
   return NextResponse.json({ decision: "SILENT" });
 }
