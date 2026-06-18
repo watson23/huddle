@@ -85,9 +85,9 @@ export async function POST(req: NextRequest) {
     .limit(10)
     .get();
 
-  const memories: Memory[] = huddleMemSnap.docs.map(
-    (d) => ({ id: d.id, ...d.data() } as Memory)
-  );
+  const memories: Memory[] = huddleMemSnap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as Memory))
+    .filter((m) => m.status !== "archived");
 
   const memoryContext =
     memories.length > 0

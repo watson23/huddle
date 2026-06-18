@@ -58,13 +58,30 @@ export interface HuddleFile {
   createdAt: number;
 }
 
+export const MEMORY_CATEGORIES = [
+  "Decision",
+  "Person",
+  "Project",
+  "Terminology",
+  "Action item",
+  "Preference",
+  "Other",
+] as const;
+
+export type MemoryCategory = (typeof MEMORY_CATEGORIES)[number];
+
 export interface Memory {
   id: string;
   key: string;
   value: string;
   source: string;
+  category?: MemoryCategory;
+  pinned?: boolean; // human-curated: never auto-modified or auto-archived
+  status?: "active" | "archived"; // missing = active (legacy)
+  editedBy?: string; // uid of last human editor
   createdAt: number;
   updatedAt: number;
+  lastConfirmedAt?: number; // last time the AI re-saw this fact
 }
 
 export interface UserProfile {

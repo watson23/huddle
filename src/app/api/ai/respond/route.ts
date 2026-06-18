@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   const memories: Memory[] = [
     ...huddleMemSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Memory)),
     ...teamMemSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Memory)),
-  ];
+  ].filter((m) => m.status !== "archived");
 
   const provider = new ClaudeProvider();
   const stream = provider.generateResponse({

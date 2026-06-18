@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { claimAITurn } from "@/lib/ai-locks";
+import {
+  fetchActiveMemories,
+  applyMemoryOps,
+  renderMemoriesForPrompt,
+  consolidateScope,
+  CONSOLIDATE_THRESHOLD,
+  type MemoryOp,
+  type MemoryScope,
+} from "@/lib/ai/memory-ops";
 import Anthropic from "@anthropic-ai/sdk";
 import type { Message } from "@/types";
 
@@ -8,123 +17,120 @@ function getClient() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 }
 
-const EXTRACTION_PROMPT = `You are analyzing a group conversation to extract key facts, decisions, and context that would be useful to remember for future conversations.
+const RECONCILE_PROMPT = `You maintain a shared team memory — a compact, current, de-duplicated knowledge base. You are given the EXISTING memories (each with an id) and NEW conversation since they were last updated. Decide what to record, preferring to refine existing memories over creating near-duplicates.
 
-Extract memories in this JSON format:
-{
-  "huddleMemories": [
-    { "key": "short label", "value": "the fact or decision" }
-  ],
-  "teamMemories": [
-    { "key": "short label", "value": "fact relevant across the entire team" }
-  ]
-}
+Return ONLY valid JSON: { "operations": [ ... ] }
+
+Each operation is one of:
+- {"op":"add","scope":"huddle"|"team","category":"<category>","key":"short label","value":"the fact in 1-2 sentences"}
+- {"op":"update","scope":"huddle"|"team","id":"<existing id>","value":"refined/corrected fact","category":"<category>","key":"short label"}
 
 Rules:
-- Huddle memories: specific to this conversation (decisions made, action items, context)
-- Team memories: broadly relevant (terminology, people, projects, processes)
-- Be concise — each value should be 1-2 sentences
-- Only extract genuinely useful information, not trivial chat
-- If nothing meaningful was discussed, return empty arrays
-- Return valid JSON only, no markdown`;
+- If a fact is ALREADY captured by an existing memory, do nothing (omit it). Never re-add something that already exists.
+- Prefer "update" over "add" when new info refines, corrects, or supersedes an existing memory about the same thing.
+- "huddle" scope = specific to this conversation (decisions, action items, local context). "team" scope = broadly relevant across the whole team (people, terminology, projects, processes).
+- Allowed categories: Decision, Person, Project, Terminology, Action item, Preference, Other.
+- Only record genuinely useful, durable information. Ignore small talk and transient chatter.
+- NEVER modify a memory marked [PINNED] — omit it entirely.
+- If nothing meaningful is new, return {"operations": []}.`;
+
+function parseOps(text: string): MemoryOp[] {
+  const cleaned = text.replace(/```json\s*|\s*```/g, "").trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return Array.isArray(parsed.operations) ? parsed.operations : [];
+  } catch {
+    console.error("Failed to parse memory ops:", text);
+    return [];
+  }
+}
 
 export async function POST(req: NextRequest) {
   const { teamId, huddleId } = await req.json();
-
   if (!teamId || !huddleId) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
-  // Fetch recent messages (last 100 for better context)
-  const msgSnap = await getAdminDb()
+  const db = getAdminDb();
+  const huddleRef = db
     .collection("teams")
     .doc(teamId)
     .collection("huddles")
-    .doc(huddleId)
-    .collection("messages")
-    .orderBy("createdAt", "desc")
+    .doc(huddleId);
+  const messagesRef = huddleRef.collection("messages");
+
+  // Only look at messages newer than the last extraction (watermark) — avoids
+  // re-extracting the same facts from an overlapping window every run.
+  const huddleSnap = await huddleRef.get();
+  const watermark: number = huddleSnap.data()?.lastMemoryExtractAt || 0;
+
+  const newMsgSnap = await messagesRef
+    .where("createdAt", ">", watermark)
+    .orderBy("createdAt", "asc")
     .limit(100)
     .get();
 
-  const messages: Message[] = msgSnap.docs
-    .map((d) => ({ id: d.id, ...d.data() } as Message))
-    .reverse();
+  const newMessages: Message[] = newMsgSnap.docs.map(
+    (d) => ({ id: d.id, ...d.data() } as Message)
+  );
 
-  if (messages.length < 3) {
-    return NextResponse.json({ extracted: 0 });
+  if (newMessages.length < 3) {
+    return NextResponse.json({ extracted: 0, reason: "not enough new messages" });
   }
 
-  // De-dupe across clients: every member's timer fires this route, but only one
-  // should extract for a given conversation state, or we'd save the same
-  // memories N times. Claim keyed on the latest message.
-  const latestMessageId = messages[messages.length - 1].id;
-  const won = await claimAITurn(teamId, huddleId, "memory", latestMessageId);
+  // Coordinate across clients: only one should extract for a given state.
+  const latestId = newMessages[newMessages.length - 1].id;
+  const won = await claimAITurn(teamId, huddleId, "memory", latestId);
   if (!won) {
     return NextResponse.json({ extracted: 0, skipped: true });
   }
 
-  const conversationText = messages
+  const [huddleMems, teamMems] = await Promise.all([
+    fetchActiveMemories(teamId, huddleId, "huddle"),
+    fetchActiveMemories(teamId, huddleId, "team"),
+  ]);
+
+  const conversationText = newMessages
     .map((m) => `${m.isAI ? "AI" : m.authorName}: ${m.text}`)
     .join("\n");
 
   const response = await getClient().messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 1024,
-    system: EXTRACTION_PROMPT,
+    max_tokens: 1500,
+    system: RECONCILE_PROMPT,
     messages: [
       {
         role: "user",
-        content: `Extract memories from this conversation:\n\n${conversationText}`,
+        content: `EXISTING huddle memories:\n${renderMemoriesForPrompt(
+          huddleMems
+        )}\n\nEXISTING team memories:\n${renderMemoriesForPrompt(
+          teamMems
+        )}\n\nNEW conversation:\n${conversationText}`,
       },
     ],
   });
 
   const text =
     response.content[0].type === "text" ? response.content[0].text : "";
+  const ops = parseOps(text);
+  const result = await applyMemoryOps(teamId, huddleId, ops);
 
-  try {
-    const parsed = JSON.parse(text);
-    const now = Date.now();
+  // Advance the watermark past everything we just considered.
+  await huddleRef.update({
+    lastMemoryExtractAt: newMessages[newMessages.length - 1].createdAt,
+  });
 
-    // Save huddle memories
-    for (const mem of parsed.huddleMemories || []) {
-      await getAdminDb()
-        .collection("teams")
-        .doc(teamId)
-        .collection("huddles")
-        .doc(huddleId)
-        .collection("memory")
-        .add({
-          key: mem.key,
-          value: mem.value,
-          source: `auto-extracted`,
-          createdAt: now,
-          updatedAt: now,
-        });
+  // Auto-tidy any scope whose active count has grown past the threshold.
+  for (const scope of ["huddle", "team"] as MemoryScope[]) {
+    const base = scope === "huddle" ? huddleMems.length : teamMems.length;
+    if (base + result.added > CONSOLIDATE_THRESHOLD) {
+      try {
+        await consolidateScope(teamId, huddleId, scope);
+      } catch (err) {
+        console.error(`Auto-consolidate (${scope}) failed:`, err);
+      }
     }
-
-    // Save team memories
-    for (const mem of parsed.teamMemories || []) {
-      await getAdminDb()
-        .collection("teams")
-        .doc(teamId)
-        .collection("memory")
-        .add({
-          key: mem.key,
-          value: mem.value,
-          source: `auto-extracted from huddle ${huddleId}`,
-          createdAt: now,
-          updatedAt: now,
-        });
-    }
-
-    return NextResponse.json({
-      extracted:
-        (parsed.huddleMemories?.length || 0) +
-        (parsed.teamMemories?.length || 0),
-    });
-  } catch {
-    console.error("Failed to parse memory extraction:", text);
-    return NextResponse.json({ error: "Parse failed" }, { status: 500 });
   }
+
+  return NextResponse.json({ ...result });
 }
