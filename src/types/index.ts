@@ -5,6 +5,7 @@ export interface Team {
   name: string;
   members: string[]; // user UIDs
   joinCode: string; // 6-char alphanumeric code
+  joinLocked?: boolean; // when true, no one new can join by code/link
   createdBy: string;
   createdAt: number;
 }
@@ -34,6 +35,7 @@ export interface Message {
   threadId?: string; // if this is a thread reply
   attachments?: FileAttachment[];
   createdAt: number;
+  editedAt?: number;
 }
 
 export interface FileAttachment {

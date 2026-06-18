@@ -14,7 +14,7 @@ export default function JoinPage() {
   const teamId = params.teamId as string;
 
   const [team, setTeam] = useState<Team | null>(null);
-  const [status, setStatus] = useState<"loading" | "found" | "not-found" | "joining" | "joined">("loading");
+  const [status, setStatus] = useState<"loading" | "found" | "not-found" | "locked" | "joining" | "joined">("loading");
 
   // Load team info
   useEffect(() => {
@@ -37,6 +37,12 @@ export default function JoinPage() {
     // Already a member
     if (team.members.includes(user.uid)) {
       router.replace("/app");
+      return;
+    }
+
+    // Team has locked new joins
+    if (team.joinLocked) {
+      setStatus("locked");
       return;
     }
 
@@ -67,6 +73,21 @@ export default function JoinPage() {
           <h2 className="text-xl font-bold text-gray-900">Invite not found</h2>
           <p className="mt-2 text-sm text-gray-500">
             This invite link is invalid or the team no longer exists.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "locked") {
+    return (
+      <div className="flex h-full items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg">
+          <h2 className="text-xl font-bold text-gray-900">Joining is closed</h2>
+          <p className="mt-2 text-sm text-gray-500">
+            <span className="font-medium text-indigo-600">{team?.name}</span>{" "}
+            isn&apos;t accepting new members right now. Ask a team member to
+            re-open joining.
           </p>
         </div>
       </div>

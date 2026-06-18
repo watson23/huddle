@@ -68,7 +68,7 @@ export class ClaudeProvider implements AIProvider {
     }
 
     const stream = this.client.messages.stream({
-      model: "claude-sonnet-4-6",
+      model: "claude-opus-4-8",
       max_tokens: 2048,
       system: systemParts.join(""),
       messages: mergedMessages,

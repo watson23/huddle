@@ -7,6 +7,8 @@ import {
   where,
   onSnapshot,
   addDoc,
+  doc,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +24,13 @@ interface SidebarProps {
   onSelectHuddle: (huddle: Huddle) => void;
 }
 
+function generateJoinCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
 export function Sidebar({ team, teams, onSwitchTeam, onCreateTeam, activeHuddle, onSelectHuddle }: SidebarProps) {
   const { user, signOut } = useAuth();
   const [huddles, setHuddles] = useState<Huddle[]>([]);
@@ -31,6 +40,29 @@ export function Sidebar({ team, teams, onSwitchTeam, onCreateTeam, activeHuddle,
   const [showInvite, setShowInvite] = useState(false);
   const [showTeamSwitcher, setShowTeamSwitcher] = useState(false);
   const { members, isOnline } = usePresence(team.id);
+
+  // Local view of the invite settings so admin actions reflect immediately
+  // (the team prop isn't a live subscription).
+  const [joinCode, setJoinCode] = useState(team.joinCode);
+  const [joinLocked, setJoinLocked] = useState(!!team.joinLocked);
+  const isAdmin = team.createdBy === user?.uid;
+
+  useEffect(() => {
+    setJoinCode(team.joinCode);
+    setJoinLocked(!!team.joinLocked);
+  }, [team.id, team.joinCode, team.joinLocked]);
+
+  const rotateCode = async () => {
+    const next = generateJoinCode();
+    setJoinCode(next);
+    await updateDoc(doc(db, "teams", team.id), { joinCode: next });
+  };
+
+  const toggleLock = async () => {
+    const next = !joinLocked;
+    setJoinLocked(next);
+    await updateDoc(doc(db, "teams", team.id), { joinLocked: next });
+  };
 
   // Keep latest values for the snapshot closure without resubscribing.
   const activeHuddleRef = useRef(activeHuddle);
@@ -242,24 +274,44 @@ export function Sidebar({ team, teams, onSwitchTeam, onCreateTeam, activeHuddle,
               Join code
             </p>
             <p className="mb-3 text-center font-mono text-lg tracking-widest text-white">
-              {team.joinCode || "—"}
+              {joinLocked ? "Locked" : joinCode || "—"}
             </p>
             <button
+              disabled={joinLocked}
               onClick={() => {
-                const text = team.joinCode
-                  ? `Join my Huddle workspace!\nCode: ${team.joinCode}\nOr use this link: ${window.location.origin}/join/${team.id}`
+                const text = joinCode
+                  ? `Join my Huddle workspace!\nCode: ${joinCode}\nOr use this link: ${window.location.origin}/join/${team.id}`
                   : `${window.location.origin}/join/${team.id}`;
                 navigator.clipboard.writeText(text);
                 setInviteCopied(true);
                 setTimeout(() => setInviteCopied(false), 2000);
               }}
-              className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-md bg-indigo-500/20 px-3 py-1.5 text-xs text-indigo-300 transition-colors hover:bg-indigo-500/30"
+              className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-md bg-indigo-500/20 px-3 py-1.5 text-xs text-indigo-300 transition-colors hover:bg-indigo-500/30 disabled:opacity-40"
             >
               {inviteCopied ? "Copied!" : "Copy invite"}
             </button>
+
+            {isAdmin && (
+              <div className="mt-2 flex flex-col gap-1 border-t border-white/10 pt-2">
+                <button
+                  onClick={rotateCode}
+                  disabled={joinLocked}
+                  className="text-center text-[10px] text-gray-400 hover:text-gray-200 disabled:opacity-40"
+                >
+                  Generate new code
+                </button>
+                <button
+                  onClick={toggleLock}
+                  className="text-center text-[10px] text-gray-400 hover:text-gray-200"
+                >
+                  {joinLocked ? "Re-open joining" : "Lock joining"}
+                </button>
+              </div>
+            )}
+
             <button
               onClick={() => setShowInvite(false)}
-              className="w-full text-center text-[10px] text-gray-500 hover:text-gray-400"
+              className="mt-2 w-full text-center text-[10px] text-gray-500 hover:text-gray-400"
             >
               Close
             </button>

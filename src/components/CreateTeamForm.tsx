@@ -100,6 +100,12 @@ export function CreateTeamForm({ onCreated, onClose }: CreateTeamFormProps) {
       return;
     }
 
+    if (teamData.joinLocked) {
+      setJoinError("This team isn't accepting new members right now.");
+      setJoining(false);
+      return;
+    }
+
     await updateDoc(doc(db, "teams", teamDoc.id), {
       members: arrayUnion(user.uid),
     });

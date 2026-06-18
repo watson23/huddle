@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   collection,
   query,
@@ -39,6 +40,7 @@ export function ChatHuddle({
   onToggleMemory,
   onMenuClick,
 }: ChatHuddleProps) {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [aiStreaming, setAiStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
@@ -334,6 +336,9 @@ export function ChatHuddle({
         onOpenThread={onOpenThread}
         aiStreaming={aiStreaming}
         streamingText={streamingText}
+        teamId={team.id}
+        huddleId={huddle.id}
+        currentUserId={user?.uid}
       />
 
       {/* AI raised hand */}
