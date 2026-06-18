@@ -85,6 +85,9 @@ export function AppShell({ team, teams, onSwitchTeam, onCreateTeam }: AppShellPr
             onToggleMemory={() =>
               setRightPanel((p) => (p === "memory" ? "closed" : "memory"))
             }
+            onToggleFiles={() =>
+              setRightPanel((p) => (p === "files" ? "closed" : "files"))
+            }
             onMenuClick={() => setSidebarOpen(true)}
           />
         ) : (

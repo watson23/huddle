@@ -4,7 +4,8 @@ import { useState, useRef } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Team, Huddle } from "@/types";
+import { uploadHuddleFile } from "@/lib/storage-helpers";
+import type { Team, Huddle, FileAttachment } from "@/types";
 
 interface MessageInputProps {
   huddle: Huddle;
@@ -26,7 +27,11 @@ export function MessageInput({
   const { user } = useAuth();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [attachments, setAttachments] = useState<FileAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const aiEnabled = huddle.aiPresence !== "off";
 
@@ -34,10 +39,12 @@ export function MessageInput({
   const mentionsAI = (msg: string) => /(^|\s)@ai\b/i.test(msg);
 
   const sendMessage = async (forceAI = false) => {
-    if (!text.trim() || !user || sending) return;
+    if ((!text.trim() && attachments.length === 0) || !user || sending) return;
 
     const messageText = text.trim();
+    const messageAttachments = attachments;
     setText("");
+    setAttachments([]);
     setSending(true);
 
     // Reset textarea height
@@ -57,7 +64,7 @@ export function MessageInput({
           text: messageText,
           isAI: false,
           threadId: threadId || null,
-          attachments: [],
+          attachments: messageAttachments,
           createdAt: Date.now(),
         }
       );
@@ -137,7 +144,26 @@ export function MessageInput({
     }
   };
 
-  const canSend = !!text.trim() && !sending;
+  const canSend = (!!text.trim() || attachments.length > 0) && !sending;
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const attachment = await uploadHuddleFile(team.id, huddle.id, file, user.uid);
+      setAttachments((prev) => [...prev, attachment]);
+    } catch (err) {
+      console.error("Attachment upload failed:", err);
+      setUploadError(
+        "Upload failed — check that Firebase Storage is enabled and its rules allow team members."
+      );
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const handleInput = () => {
     const ta = textareaRef.current;
@@ -149,7 +175,51 @@ export function MessageInput({
 
   return (
     <div className="border-t border-gray-200 bg-white px-4 py-3">
+      {attachments.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {attachments.map((att, i) => (
+            <span
+              key={att.id}
+              className="flex items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-1 text-xs text-indigo-700"
+            >
+              {att.name}
+              <button
+                onClick={() =>
+                  setAttachments((prev) => prev.filter((_, j) => j !== i))
+                }
+                className="text-indigo-400 hover:text-indigo-700"
+                title="Remove"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {uploadError && (
+        <p className="mb-2 text-xs text-red-500">{uploadError}</p>
+      )}
       <div className="flex items-end gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || sending}
+          title="Attach a file"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 disabled:opacity-40"
+        >
+          {uploading ? (
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+          ) : (
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
+          )}
+        </button>
         <textarea
           ref={textareaRef}
           value={text}

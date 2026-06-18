@@ -25,6 +25,7 @@ interface ChatHuddleProps {
   team: Team;
   onOpenThread: (messageId: string) => void;
   onToggleMemory: () => void;
+  onToggleFiles: () => void;
   onMenuClick: () => void;
 }
 
@@ -38,6 +39,7 @@ export function ChatHuddle({
   team,
   onOpenThread,
   onToggleMemory,
+  onToggleFiles,
   onMenuClick,
 }: ChatHuddleProps) {
   const { user } = useAuth();
@@ -314,8 +316,15 @@ export function ChatHuddle({
           </svg>
         </button>
 
-        {/* Files: hidden until storage upload is actually wired up.
-            Re-enable this button (and the "files" RightPanel case) when ready. */}
+        <button
+          onClick={onToggleFiles}
+          className="rounded p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          title="Files"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+          </svg>
+        </button>
 
         {/* Brand mark */}
         <button
